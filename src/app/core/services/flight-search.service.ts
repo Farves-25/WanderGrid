@@ -1,47 +1,95 @@
-import { Service } from '@angular/core';
-import { EngineContext, searchFlights } from '../engine/flight-engine';
-import { Cabin, FlightOffer, SearchLeg } from '../models/flight.model';
-import { addDays, todayIso } from '../util/date.util';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Service, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+import { ApiStatus, BookingResult, SearchParams, SearchResult } from '../models/flight.model';
+import { searchKey } from '../util/flight-format';
 
-/** Search facade: the deterministic engine behind a realistic latency, with result caching. */
+export type ApiErrorCode = 'not_configured' | 'invalid_key' | 'quota' | 'rate_limited' | 'offline' | 'bad_request' | 'upstream_error' | 'upstream_unreachable' | 'server_error';
+
+export class ApiError extends Error {
+  constructor(
+    readonly code: ApiErrorCode | string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** Results stay reusable in the tab for this long, so going back and forth costs no extra searches. */
+const SESSION_TTL = 20 * 60_000;
+
+function toApiError(e: unknown): ApiError {
+  if (e instanceof ApiError) return e;
+  if (e instanceof HttpErrorResponse) {
+    const body = e.error as { error?: { code?: unknown; message?: unknown } } | null;
+    if (body && typeof body === 'object' && body.error && typeof body.error.message === 'string') {
+      return new ApiError(typeof body.error.code === 'string' ? body.error.code : 'server_error', body.error.message);
+    }
+    if (e.status === 0) return new ApiError('offline', 'Can’t reach the WanderGrid server. Check your connection and that the API server is running.');
+    if (e.status === 504 || e.status === 502) return new ApiError('upstream_unreachable', 'The WanderGrid API server isn’t responding. Start it with “npm start”.');
+  }
+  return new ApiError('server_error', 'Something went wrong while loading live flight data.');
+}
+
+/** Live flight data (Google Flights via the WanderGrid API server). */
 @Service()
 export class FlightSearchService {
-  private readonly cache = new Map<string, FlightOffer[]>();
+  private readonly http = inject(HttpClient);
+  private readonly cache = new Map<string, { at: number; value: SearchResult | BookingResult }>();
 
-  ctx(todayOverride?: string): EngineContext {
-    return { nowMs: Date.now(), todayIso: todayOverride ?? todayIso() };
+  /** Provider configuration and remaining search quota; null until first loaded. */
+  readonly status = signal<ApiStatus | null>(null);
+
+  /**
+   * Flights for one leg. Leg 0 needs no token; each later leg needs the `nextToken`
+   * of the flight chosen for the leg before it. `fresh` bypasses every cache.
+   */
+  async search(params: SearchParams, legIndex: number, token: string | null, fresh = false): Promise<SearchResult> {
+    const key = `s|${searchKey(params)}|${legIndex}|${token ?? ''}`;
+    const hit = fresh ? undefined : this.hit<SearchResult>(key);
+    if (hit) return hit;
+    const value = await this.post<SearchResult>('/api/flights/search', { params, legIndex, token, fresh });
+    this.cache.set(key, { at: Date.now(), value });
+    return value;
   }
 
-  /** Synchronous search (used for calendars, deals, alerts). */
-  searchSync(leg: SearchLeg, legIndex: number, cabin: Cabin, ctx: EngineContext = this.ctx()): FlightOffer[] {
-    const key = `${leg.from}|${leg.to}|${leg.date}|${cabin}|${legIndex}|${ctx.todayIso}`;
-    const hit = this.cache.get(key);
-    if (hit && ctx.todayIso === todayIso()) return hit;
-    const res = searchFlights(leg, legIndex, cabin, ctx);
-    if (ctx.todayIso === todayIso()) this.cache.set(key, res);
-    return res;
+  /** Booking sites and their prices for a fully chosen itinerary. */
+  async booking(params: SearchParams, token: string): Promise<BookingResult> {
+    const key = `b|${searchKey(params)}|${token}`;
+    const hit = this.hit<BookingResult>(key);
+    if (hit) return hit;
+    const value = await this.post<BookingResult>('/api/flights/booking', { params, token });
+    this.cache.set(key, { at: Date.now(), value });
+    return value;
   }
 
-  /** Asynchronous search with simulated network time. */
-  async search(leg: SearchLeg, legIndex: number, cabin: Cabin): Promise<FlightOffer[]> {
-    const delay = 650 + Math.round(Math.random() * 500);
-    await new Promise((r) => setTimeout(r, delay));
-    return this.searchSync(leg, legIndex, cabin);
-  }
-
-  cheapest(leg: SearchLeg, cabin: Cabin, ctx: EngineContext = this.ctx()): number | null {
-    const offers = this.searchSync(leg, 0, cabin, ctx);
-    return offers.length === 0 ? null : Math.min(...offers.map((o) => o.fares.basic.total));
-  }
-
-  /** Cheapest fare for each day around `centre` (inclusive window). */
-  fareCalendar(from: string, to: string, centre: string, cabin: Cabin, radius = 3): { date: string; usd: number | null }[] {
-    const today = todayIso();
-    const out: { date: string; usd: number | null }[] = [];
-    for (let i = -radius; i <= radius; i++) {
-      const date = addDays(centre, i);
-      out.push({ date, usd: date < today ? null : this.cheapest({ from, to, date }, cabin) });
+  async refreshStatus(): Promise<ApiStatus | null> {
+    try {
+      const s = await firstValueFrom(this.http.get<ApiStatus>('/api/status'));
+      this.status.set(s);
+      return s;
+    } catch {
+      return null;
     }
-    return out;
+  }
+
+  private hit<T extends SearchResult | BookingResult>(key: string): T | undefined {
+    const e = this.cache.get(key);
+    if (!e) return undefined;
+    if (Date.now() - e.at > SESSION_TTL) {
+      this.cache.delete(key);
+      return undefined;
+    }
+    return { ...(e.value as T), cached: true };
+  }
+
+  private async post<T>(url: string, body: unknown): Promise<T> {
+    try {
+      const res = await firstValueFrom(this.http.post<T>(url, body));
+      void this.refreshStatus();
+      return res;
+    } catch (e) {
+      throw toApiError(e);
+    }
   }
 }

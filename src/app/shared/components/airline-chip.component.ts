@@ -1,25 +1,32 @@
-import { Component, computed, input } from '@angular/core';
-import { airline } from '../../core/data/airlines';
+import { NgOptimizedImage } from '@angular/common';
+import { Component, computed, input, signal } from '@angular/core';
 
-function textColor(hex: string): string {
-  const n = parseInt(hex.slice(1), 16);
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
-    const c = v / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return lum > 0.35 ? '#10143a' : '#ffffff';
-}
-
-/** Monogram badge in the airline's brand color (decorative — the airline name is always shown nearby). */
+/** Airline logo as published by the data provider, with a monogram fallback (decorative — the airline name is always shown nearby). */
 @Component({
   selector: 'app-airline-chip',
-  template: `<span class="grid place-items-center rounded-xl font-display text-[0.8rem] font-bold tracking-tight" [style.width.px]="size()" [style.height.px]="size()" [style.background]="bg()" [style.color]="fg()" aria-hidden="true">{{ code() }}</span>`,
-  host: { class: 'inline-flex' },
+  imports: [NgOptimizedImage],
+  template: `
+    <span class="grid place-items-center overflow-hidden rounded-xl bg-white font-display text-[0.7rem] font-bold tracking-tight text-[#10143a]" [style.width.px]="size()" [style.height.px]="size()" aria-hidden="true">
+      @if (logo() && !failed()) {
+        <img [ngSrc]="logo()!" [width]="size()" [height]="size()" alt="" class="h-full w-full object-contain p-0.5" (error)="failed.set(true)" />
+      } @else {
+        {{ monogram() }}
+      }
+    </span>
+  `,
+  host: { class: 'inline-flex shrink-0' },
 })
 export class AirlineChipComponent {
-  readonly code = input.required<string>();
+  readonly name = input.required<string>();
+  readonly logo = input<string | null>(null);
   readonly size = input(38);
-  protected readonly bg = computed(() => airline(this.code()).color);
-  protected readonly fg = computed(() => textColor(this.bg()));
+  protected readonly failed = signal(false);
+  protected readonly monogram = computed(() =>
+    this.name()
+      .split(/\s+/)
+      .map((w) => w[0] ?? '')
+      .join('')
+      .slice(0, 2)
+      .toUpperCase(),
+  );
 }

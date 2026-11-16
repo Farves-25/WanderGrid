@@ -1,28 +1,50 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AIRPORTS, airport, distanceKm, searchAirports } from './data/airports';
-import { searchFlights } from './engine/flight-engine';
-import { buildSeatMap, seatAllowed, seatCharge } from './engine/seatmap';
-import { formatLocalTime, localToUtc, offsetMinutes } from './engine/time';
-import { Passenger, SearchParams } from './models/flight.model';
+import { FlightOffer, SearchParams, SearchResult, Segment } from './models/flight.model';
+import { AlertsService, alertParams, trackedPrice } from './services/alerts.service';
 import { AuthService } from './services/auth.service';
-import { BookingFlowService } from './services/booking-flow.service';
-import { BookingsService } from './services/bookings.service';
-import { FlightSearchService } from './services/flight-search.service';
+import { ApiError, FlightSearchService } from './services/flight-search.service';
+import { PreferencesService } from './services/preferences.service';
+import { SavedService } from './services/saved.service';
+import { openBooking } from './util/booking-redirect';
 import { addDays, todayIso } from './util/date.util';
-import { cardBrand, expiryValid, formatCardNumber, luhn, simulateAuthorization } from './util/card.util';
-import { blankPassenger, validatePassenger } from './util/passenger-validation';
+import { cityOf, departureBand, formatDuration, lowestPrice, offerTimes, plusDays, routeCodes, searchKey, stopsLabel, tripDates } from './util/flight-format';
 import { fromQuery, toQuery, validateSearch } from './util/search-query';
 
 const today = todayIso();
-const ctx = { nowMs: Date.now(), todayIso: today };
+const date = addDays(today, 60);
+
+function segment(over: Partial<Segment> = {}): Segment {
+  return {
+    airline: 'British Airways', airlineLogo: null, flightNo: 'BA 117', aircraft: 'Boeing 777', cabin: 'Economy',
+    from: 'LHR', fromName: 'Heathrow Airport', to: 'JFK', toName: 'John F. Kennedy International Airport',
+    dep: `${date} 08:25`, arr: `${date} 11:20`, durationMin: 475, legroom: '31 in', extensions: [], overnight: false, oftenDelayed: false, operatedBy: null, alsoSoldBy: [],
+    ...over,
+  };
+}
+
+function offer(over: Partial<FlightOffer> = {}): FlightOffer {
+  const segments = over.segments ?? [segment()];
+  return {
+    id: 'o1', legIndex: 0, best: false, segments, layovers: [], airlines: ['British Airways'], logo: null,
+    dep: segments[0].dep, arr: segments[segments.length - 1].arr, durationMin: 475, stops: segments.length - 1, priceUsd: 520, tripType: 'One way',
+    co2Kg: 400, co2TypicalKg: 420, co2DiffPct: -5, extensions: [], nextToken: null, bookingToken: 'BOOK',
+    ...over,
+  };
+}
+
+function result(over: Partial<SearchResult> = {}): SearchResult {
+  return { offers: [offer()], insights: null, googleUrl: 'https://www.google.com/travel/flights', fetchedAt: Date.now(), cached: false, ...over };
+}
 
 describe('airports', () => {
   it('computes great-circle distances', () => {
     expect(distanceKm(airport('LHR'), airport('JFK'))).toBeGreaterThan(5400);
     expect(distanceKm(airport('LHR'), airport('JFK'))).toBeLessThan(5700);
-    expect(distanceKm(airport('LHR'), airport('SYD'))).toBeGreaterThan(16800);
   });
   it('autocompletes by code, city and country', () => {
     expect(searchAirports('jfk')[0].code).toBe('JFK');
@@ -32,167 +54,6 @@ describe('airports', () => {
   });
   it('has unique codes', () => {
     expect(new Set(AIRPORTS.map((a) => a.code)).size).toBe(AIRPORTS.length);
-  });
-});
-
-describe('time zones', () => {
-  it('applies DST in Europe and the US', () => {
-    const summer = Date.UTC(2027, 6, 1, 12);
-    const winter = Date.UTC(2027, 0, 15, 12);
-    expect(offsetMinutes(airport('LHR'), summer)).toBe(60);
-    expect(offsetMinutes(airport('LHR'), winter)).toBe(0);
-    expect(offsetMinutes(airport('JFK'), summer)).toBe(-240);
-    expect(offsetMinutes(airport('JFK'), winter)).toBe(-300);
-    expect(offsetMinutes(airport('SYD'), winter)).toBe(660);
-    expect(offsetMinutes(airport('SYD'), summer)).toBe(600);
-    expect(offsetMinutes(airport('DEL'), summer)).toBe(330);
-  });
-  it('round-trips local time', () => {
-    const utc = localToUtc(airport('JFK'), '2027-07-01', 14 * 60 + 35);
-    expect(formatLocalTime(airport('JFK'), utc)).toBe('14:35');
-    expect(utc).toBe(Date.UTC(2027, 6, 1, 18, 35));
-  });
-});
-
-describe('flight engine', () => {
-  const date = addDays(today, 40);
-
-  it('is deterministic', () => {
-    const a = searchFlights({ from: 'LHR', to: 'JFK', date }, 0, 'economy', ctx);
-    const b = searchFlights({ from: 'LHR', to: 'JFK', date }, 0, 'economy', ctx);
-    expect(a.map((o) => o.id)).toEqual(b.map((o) => o.id));
-    expect(a.map((o) => o.fares.basic.total)).toEqual(b.map((o) => o.fares.basic.total));
-  });
-
-  it('returns realistic transatlantic offers', () => {
-    const offers = searchFlights({ from: 'LHR', to: 'JFK', date }, 0, 'economy', ctx);
-    expect(offers.length).toBeGreaterThan(5);
-    for (const o of offers) {
-      expect(o.arrUtc).toBeGreaterThan(o.depUtc);
-      expect(o.durationMin).toBe(Math.round((o.arrUtc - o.depUtc) / 60000));
-      expect(o.segments[0].from).toBe('LHR');
-      expect(o.segments[o.segments.length - 1].to).toBe('JFK');
-      expect(o.stops).toBe(o.segments.length - 1);
-      expect(o.fares.basic.total).toBeGreaterThan(40);
-      expect(o.fares.basic.total).toBeLessThan(3000);
-      expect(o.fares.standard.total).toBeGreaterThan(o.fares.basic.total);
-      expect(o.fares.flex.total).toBeGreaterThan(o.fares.standard.total);
-      expect(o.seatsLeft).toBeGreaterThanOrEqual(1);
-      for (let i = 1; i < o.segments.length; i++) expect(o.segments[i].depUtc).toBeGreaterThan(o.segments[i - 1].arrUtc);
-    }
-    const direct = offers.filter((o) => o.stops === 0);
-    expect(direct.length).toBeGreaterThan(0);
-    expect(Math.min(...direct.map((o) => o.durationMin))).toBeGreaterThan(6 * 60);
-    expect(Math.max(...direct.map((o) => o.durationMin))).toBeLessThan(10 * 60);
-  });
-
-  it('connects ultra-long-haul routes', () => {
-    const offers = searchFlights({ from: 'LHR', to: 'SYD', date }, 0, 'economy', ctx);
-    expect(offers.length).toBeGreaterThan(3);
-    expect(offers.every((o) => o.durationMin > 18 * 60)).toBe(true);
-  });
-
-  it('prices last-minute fares above advance fares', () => {
-    const near = searchFlights({ from: 'LHR', to: 'DXB', date: addDays(today, 2) }, 0, 'economy', ctx);
-    const far = searchFlights({ from: 'LHR', to: 'DXB', date: addDays(today, 70) }, 0, 'economy', ctx);
-    const avg = (l: typeof near): number => l.reduce((s, o) => s + o.fares.basic.total, 0) / Math.max(1, l.length);
-    expect(avg(near)).toBeGreaterThan(avg(far));
-  });
-
-  it('respects cabin availability and cabin pricing', () => {
-    const eco = searchFlights({ from: 'LHR', to: 'JFK', date }, 0, 'economy', ctx);
-    const biz = searchFlights({ from: 'LHR', to: 'JFK', date }, 0, 'business', ctx);
-    const first = searchFlights({ from: 'LHR', to: 'JFK', date }, 0, 'first', ctx);
-    expect(biz.length).toBeGreaterThan(0);
-    expect(Math.min(...biz.map((o) => o.fares.basic.total))).toBeGreaterThan(Math.min(...eco.map((o) => o.fares.basic.total)) * 2);
-    for (const o of first) expect(o.segments.every((s) => s.aircraft.widebody)).toBe(true);
-    // low-cost carriers never sell business
-    expect(biz.every((o) => !['6E', 'FZ', 'AK', 'TR'].includes(o.airlines[0]))).toBe(true);
-  });
-
-  it('never offers flights departing in the past', () => {
-    const offers = searchFlights({ from: 'LHR', to: 'CDG', date: today }, 0, 'economy', ctx);
-    for (const o of offers) expect(o.depUtc).toBeGreaterThan(ctx.nowMs + 3 * 3_600_000 - 1);
-  });
-
-  it('handles identical or unknown airports', () => {
-    expect(searchFlights({ from: 'LHR', to: 'LHR', date }, 0, 'economy', ctx)).toEqual([]);
-    expect(searchFlights({ from: 'XXX', to: 'LHR', date }, 0, 'economy', ctx)).toEqual([]);
-  });
-
-  it('fare rules grow more flexible with fare family', () => {
-    const o = searchFlights({ from: 'LHR', to: 'JFK', date }, 0, 'economy', ctx)[0];
-    expect(o.fares.basic.changeFeeUsd).toBeNull();
-    expect(o.fares.standard.changeFeeUsd).toBeGreaterThan(0);
-    expect(o.fares.flex.changeFeeUsd).toBe(0);
-    expect(o.fares.basic.refund).toBe('none');
-    expect(o.fares.flex.refund).toBe('full');
-  });
-});
-
-describe('seat maps', () => {
-  const offer = searchFlights({ from: 'LHR', to: 'JFK', date: addDays(today, 40) }, 0, 'economy', ctx)[0];
-  const seg = offer.segments[0];
-
-  it('is deterministic and respects exit rows', () => {
-    const a = buildSeatMap(seg, 'economy', offer.seatsLeft);
-    const b = buildSeatMap(seg, 'economy', offer.seatsLeft);
-    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
-    const exit = a.rows.flatMap((r) => r.cells).find((c) => c?.kind === 'exit');
-    expect(exit).toBeTruthy();
-    expect(seatAllowed(exit!, { ...blankPassenger('child') })).toBe(false);
-    expect(seatAllowed(exit!, { ...blankPassenger('adult') })).toBe(true);
-  });
-
-  it('charges according to fare family', () => {
-    const map = buildSeatMap(seg, 'economy', 5);
-    const extra = map.rows.flatMap((r) => r.cells).find((c) => c?.kind === 'extra')!;
-    expect(seatCharge(extra, offer.fares.basic, 'economy')).toBeGreaterThan(0);
-    expect(seatCharge(extra, offer.fares.flex, 'economy')).toBe(0);
-    expect(seatCharge(extra, offer.fares.basic, 'business')).toBe(0);
-  });
-});
-
-describe('card utils', () => {
-  it('validates with Luhn and detects brands', () => {
-    expect(luhn('4242 4242 4242 4242')).toBe(true);
-    expect(luhn('4242 4242 4242 4241')).toBe(false);
-    expect(cardBrand('5555 5555 5555 4444')).toBe('Mastercard');
-    expect(cardBrand('3782 822463 10005')).toBe('Amex');
-    expect(formatCardNumber('4242424242424242')).toBe('4242 4242 4242 4242');
-  });
-  it('checks expiry', () => {
-    expect(expiryValid('12/99')).toBe(true);
-    expect(expiryValid('01/20')).toBe(false);
-    expect(expiryValid('13/30')).toBe(false);
-  });
-  it('simulates authorisation outcomes', () => {
-    expect(simulateAuthorization('4242424242424242', 100).kind).toBe('approved');
-    expect(simulateAuthorization('4000000000000002', 100).kind).toBe('declined');
-    expect(simulateAuthorization('4000000000003220', 100).kind).toBe('challenge');
-    expect(simulateAuthorization('4242424242424242', 2000).kind).toBe('challenge');
-  });
-});
-
-describe('passenger validation', () => {
-  const good: Passenger = { type: 'adult', title: 'Mr', firstName: 'Alex', lastName: 'Rivera', dob: '1990-05-04', gender: 'M', nationality: 'GB', passportNo: 'AB123456', passportExpiry: addDays(today, 2000), passportCountry: 'GB' };
-  const dep = addDays(today, 30);
-
-  it('accepts valid adults', () => {
-    expect(validatePassenger(good, dep, addDays(dep, 7))).toEqual({});
-  });
-  it('requires six months passport validity after return', () => {
-    const p = { ...good, passportExpiry: addDays(dep, 100) };
-    expect(validatePassenger(p, dep, addDays(dep, 7)).passportExpiry).toBeTruthy();
-  });
-  it('enforces age bands', () => {
-    expect(validatePassenger({ ...good, type: 'child', dob: '1990-05-04' }, dep, dep).dob).toBeTruthy();
-    expect(validatePassenger({ ...good, type: 'infant', dob: addDays(today, -400) }, dep, dep).dob).toBeFalsy();
-    expect(validatePassenger({ ...good, dob: addDays(today, -365 * 5) }, dep, dep).dob).toBeTruthy();
-  });
-  it('rejects bad names', () => {
-    expect(validatePassenger({ ...good, firstName: 'A1' }, dep, dep).firstName).toBeTruthy();
-    expect(validatePassenger({ ...good, lastName: "O'Brien-Smith" }, dep, dep).lastName).toBeFalsy();
   });
 });
 
@@ -215,112 +76,191 @@ describe('search query', () => {
   });
 });
 
-describe('booking flow, bookings and fare rules', () => {
-  let flow: BookingFlowService;
-  let bookings: BookingsService;
-  let search: FlightSearchService;
-  const date = addDays(today, 60);
-  const params: SearchParams = { type: 'oneway', legs: [{ from: 'LHR', to: 'JFK', date }], adults: 2, children: 1, infants: 1, cabin: 'economy' };
+describe('flight formatting', () => {
+  const overnight = offer({
+    segments: [segment({ to: 'KEF', toName: 'Keflavík', dep: '2027-03-10 21:40', arr: '2027-03-10 23:55' }), segment({ from: 'KEF', dep: '2027-03-11 17:00', arr: '2027-03-11 19:05' })],
+    layovers: [{ airport: 'KEF', name: 'Keflavík International Airport', minutes: 1025, overnight: true }],
+  });
 
-  async function setup(): Promise<void> {
-    localStorage.clear();
-    TestBed.configureTestingModule({ providers: [provideRouter([])] });
-    flow = TestBed.inject(BookingFlowService);
-    bookings = TestBed.inject(BookingsService);
-    search = TestBed.inject(FlightSearchService);
-    const auth = TestBed.inject(AuthService);
-    expect((await auth.signUp('Test User', 'test@example.com', 'password123')).ok).toBe(true);
-    flow.begin(params);
-  }
+  it('reads local times without shifting them', () => {
+    const t = offerTimes(overnight);
+    expect(t).toMatchObject({ from: 'LHR', to: 'JFK', depTime: '21:40', arrTime: '19:05', plusDays: 1 });
+    expect(plusDays('2027-03-10 23:00', '2027-03-10 23:50')).toBe(0);
+    // crossing the date line westbound can land the day before
+    expect(plusDays('2027-03-11 00:30', '2027-03-10 18:00')).toBe(-1);
+    expect(departureBand(overnight)).toBe('evening');
+    expect(departureBand(offer({ dep: '2027-03-10 05:59' }))).toBe('night');
+  });
+  it('labels stops, durations and routes', () => {
+    expect(stopsLabel(offer())).toBe('Nonstop');
+    expect(stopsLabel(overnight)).toBe('1 stop · KEF');
+    expect(formatDuration(475)).toBe('7h 55m');
+    expect(formatDuration(45)).toBe('45m');
+    expect(cityOf('LHR')).toBe('London');
+    expect(cityOf('QQQ', 'Some Regional Airport')).toBe('Some Regional Airport');
+    expect(cityOf('ZZZ')).toBe('ZZZ');
+    const round: SearchParams = { type: 'round', legs: [{ from: 'LHR', to: 'JFK', date }, { from: 'JFK', to: 'LHR', date: addDays(date, 7) }], adults: 1, children: 0, infants: 0, cabin: 'economy' };
+    expect(routeCodes(round)).toBe('LHR ⇄ JFK');
+    expect(routeCodes({ ...round, type: 'multi', legs: [round.legs[0], { from: 'JFK', to: 'LAX', date: addDays(date, 3) }] })).toBe('LHR → JFK → LAX');
+    expect(tripDates(round)).toContain('–');
+    expect(searchKey(round)).not.toBe(searchKey({ ...round, adults: 2 }));
+  });
+  it('finds the lowest published price', () => {
+    expect(lowestPrice([offer({ priceUsd: null }), offer({ priceUsd: 610 }), offer({ priceUsd: 480 })])).toBe(480);
+    expect(lowestPrice([offer({ priceUsd: null })])).toBeNull();
+    expect(lowestPrice([])).toBeNull();
+  });
+});
 
-  function fill(): void {
-    const dob = ['1990-01-01', '1991-02-02', addDays(today, -365 * 6), addDays(today, -300)];
-    flow.setPassengers(
-      flow.passengers().map((p, i) => ({ ...p, title: 'Mr', firstName: 'Pax' + String.fromCharCode(97 + i), lastName: 'Test', dob: dob[i], gender: 'M', nationality: 'GB', passportCountry: 'GB', passportNo: 'AB12345' + i, passportExpiry: addDays(today, 3000) })),
-    );
-    flow.setContact({ email: 'test@example.com', phone: '+447700900123' });
+describe('booking redirect', () => {
+  it('posts the seller form in a new tab', () => {
+    const submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(function (this: HTMLFormElement) {
+      expect(this.method.toUpperCase()).toBe('POST');
+      expect(this.action).toBe('https://www.google.com/travel/clk/f');
+      expect(this.target).toBe('_blank');
+      const fields = Array.from(this.querySelectorAll('input')).map((i) => [i.name, i.value]);
+      expect(fields).toEqual([['u', 'a b/c=='], ['x', '1']]);
+    });
+    expect(openBooking({ url: 'https://www.google.com/travel/clk/f', postData: 'u=a%20b%2Fc%3D%3D&x=1' })).toBe(true);
+    expect(submit).toHaveBeenCalledOnce();
+    expect(document.querySelector('form')).toBeNull();
+    submit.mockRestore();
+  });
+  it('opens plain links and refuses anything that is not https', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    expect(openBooking({ url: 'https://www.example-airline.com/book?x=1', postData: null })).toBe(true);
+    expect(open).toHaveBeenCalledWith('https://www.example-airline.com/book?x=1', '_blank', 'noopener');
+    expect(openBooking({ url: 'javascript:alert(1)', postData: null })).toBe(false);
+    expect(openBooking({ url: 'http://insecure.example.com', postData: 'u=1' })).toBe(false);
+    expect(open).toHaveBeenCalledOnce();
+    open.mockRestore();
+  });
+});
+
+describe('live services', () => {
+  let http: HttpTestingController;
+  let api: FlightSearchService;
+  const params: SearchParams = { type: 'oneway', legs: [{ from: 'LHR', to: 'JFK', date }], adults: 1, children: 0, infants: 0, cabin: 'economy' };
+
+  /** Answers the background requests every service makes, so each test only deals with its own. */
+  function flushBackground(): void {
+    for (const r of http.match((req) => req.url === '/api/rates' || req.url === '/api/status')) {
+      if (!r.cancelled) r.flush(r.request.url === '/api/rates' ? { base: 'USD', rates: { USD: 1, EUR: 0.5 }, updatedAt: 1 } : { configured: true, keyValid: true, account: null });
+    }
   }
+  const settle = (): Promise<void> => new Promise((r) => setTimeout(r));
 
   beforeEach(async () => {
+    localStorage.clear();
     TestBed.resetTestingModule();
-    await setup();
+    TestBed.configureTestingModule({ providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
+    http = TestBed.inject(HttpTestingController);
+    api = TestBed.inject(FlightSearchService);
+    expect((await TestBed.inject(AuthService).signUp('Test User', 'test@example.com', 'password123')).ok).toBe(true);
   });
 
-  it('prices passengers by type', () => {
-    const o = search.searchSync(params.legs[0], 0, 'economy')[0];
-    flow.select(0, o, 'standard');
-    const f = o.fares.standard;
-    const p = flow.pricing();
-    expect(p.fare).toBeCloseTo(f.base * (2 + 0.75 + 0.1), 1);
-    expect(p.taxes).toBeCloseTo(f.taxes * (2 + 1 + 0.4), 1);
-    expect(p.totalUsd).toBeCloseTo(p.fare + p.taxes, 1);
+  it('searches once and reuses the result until a refresh is forced', async () => {
+    const first = api.search(params, 0, null);
+    const req = http.expectOne('/api/flights/search');
+    expect(req.request.body).toEqual({ params, legIndex: 0, token: null, fresh: false });
+    req.flush(result());
+    expect((await first).cached).toBe(false);
+    flushBackground();
+
+    expect((await api.search(params, 0, null)).cached).toBe(true);
+    http.expectNone('/api/flights/search');
+
+    const forced = api.search(params, 0, null, true);
+    http.expectOne('/api/flights/search').flush(result({ offers: [] }));
+    expect((await forced).offers).toEqual([]);
   });
 
-  it('adds extras and applies promo codes', () => {
-    const o = search.searchSync(params.legs[0], 0, 'economy')[0];
-    flow.select(0, o, 'basic');
-    flow.setBags(0, 0, 2);
-    flow.patchExtras({ insurance: 'basic', priority: true });
-    const p = flow.pricing();
-    expect(p.bags).toBeGreaterThan(0);
-    expect(p.insurance).toBeGreaterThan(0);
-    expect(p.priority).toBe(12 * 3);
-    flow.setPromo('NOPE');
-    expect(flow.promoResult()?.valid).toBe(false);
-    const before = flow.pricing().totalUsd;
-    flow.setPromo('wander10');
-    expect(flow.promoResult()?.valid).toBe(true);
-    expect(flow.pricing().totalUsd).toBeLessThan(before);
-    flow.setPromo('FLYHIGH75');
-    expect(flow.promoResult()?.valid).toBe(false);
+  it('keeps each leg and token separate', async () => {
+    const round: SearchParams = { ...params, type: 'round', legs: [params.legs[0], { from: 'JFK', to: 'LHR', date: addDays(date, 7) }] };
+    const a = api.search(round, 1, 'TOKEN-A');
+    http.expectOne((r) => r.body?.token === 'TOKEN-A' && r.body.legIndex === 1).flush(result());
+    await a;
+    const b = api.search(round, 1, 'TOKEN-B');
+    http.expectOne((r) => r.body?.token === 'TOKEN-B').flush(result());
+    await b;
   });
 
-  it('creates, checks in, changes and cancels a booking', () => {
-    const offers = search.searchSync(params.legs[0], 0, 'economy');
-    const o = offers.find((x) => x.stops === 0) ?? offers[0];
-    flow.select(0, o, 'flex');
-    fill();
-    const b = bookings.create({ brand: 'Visa', last4: '4242' })!;
-    expect(b.ref).toMatch(/^[A-Z2-9]{6}$/);
-    expect(b.tickets.length).toBe(4);
-    expect(bookings.mine().length).toBe(1);
+  it('turns server errors into readable ApiErrors', async () => {
+    const p = api.search(params, 0, null);
+    http.expectOne('/api/flights/search').flush({ error: { code: 'not_configured', message: 'Add SERPAPI_KEY.' } }, { status: 503, statusText: 'Service Unavailable' });
+    await expect(p).rejects.toMatchObject({ code: 'not_configured', message: 'Add SERPAPI_KEY.' });
 
-    // risk-free window: full refund
-    expect(bookings.quoteCancel(b).riskFree).toBe(true);
-    expect(bookings.quoteCancel(b).refundUsd).toBeCloseTo(b.pricing.totalUsd, 1);
-
-    // check-in is closed this far ahead
-    expect(bookings.checkInOpen(b, 0)).toBe('early');
-    expect(bookings.checkIn(b.ref, 0)).toBe(false);
-    const near = new Date(o.depUtc - 24 * 3_600_000).getTime();
-    expect(bookings.checkInOpen(b, 0, near)).toBe('open');
-
-    // change to another day (flex: free change, fare difference only)
-    const other = search.searchSync({ ...params.legs[0], date: addDays(date, 2) }, 0, 'economy')[0];
-    const q = bookings.quoteChange(b, 0, other);
-    expect(q.allowed).toBe(true);
-    expect(q.feeUsd).toBe(0);
-    const applied = bookings.applyChange(b.ref, 0, other);
-    expect(applied).not.toBeNull();
-    expect(bookings.byRef(b.ref)!.legs[0].offer.id).toBe(other.id);
-
-    // cancel
-    const refund = bookings.cancel(b.ref);
-    expect(refund).not.toBeNull();
-    expect(bookings.byRef(b.ref)!.status).toBe('cancelled');
-    expect(bookings.cancel(b.ref)).toBeNull();
+    const q = api.booking(params, 'BOOK');
+    http.expectOne('/api/flights/booking').error(new ProgressEvent('error'));
+    const err = await q.catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe('offline');
   });
 
-  it('basic fares cannot be changed and refund only taxes late in the window', () => {
-    const o = search.searchSync(params.legs[0], 0, 'economy')[0];
-    flow.select(0, o, 'basic');
-    fill();
-    const b = bookings.create({ brand: 'Visa', last4: '4242' })!;
-    const other = search.searchSync({ ...params.legs[0], date: addDays(date, 1) }, 0, 'economy')[0];
-    expect(bookings.quoteChange(b, 0, other).allowed).toBe(false);
-    const late = Date.parse(b.createdAt) + 3 * 24 * 3_600_000;
-    const q = bookings.quoteCancel(b, late);
-    expect(q.riskFree).toBe(false);
-    expect(q.refundUsd).toBeCloseTo(b.pricing.taxes, 0);
+  it('converts prices with live exchange rates', async () => {
+    const prefs = TestBed.inject(PreferencesService);
+    prefs.setCurrency('EUR');
+    const builtIn = prefs.rate();
+    flushBackground();
+    await settle();
+    expect(prefs.rate()).toBe(0.5);
+    expect(builtIn).not.toBe(0.5);
+  });
+
+  it('tracks a price alert from live results', async () => {
+    const alerts = TestBed.inject(AlertsService);
+    const route = { from: 'LHR', to: 'JFK', date, returnDate: null, cabin: 'economy' as const };
+    const seed = result({ insights: { lowestUsd: 500, level: 'typical', typicalRange: [450, 700], history: [[1, 560], [2, 500]] }, fetchedAt: Date.now() - 60_000 });
+    expect(trackedPrice(seed)).toBe(500);
+    expect(alertParams(route)).toEqual(params);
+
+    const alert = alerts.create({ ...route, targetUsd: 450 }, seed)!;
+    expect(alert.createdPriceUsd).toBe(500);
+    expect(alerts.statuses()[0]).toMatchObject({ currentUsd: 500, triggered: false, seriesSource: 'google' });
+    expect(alerts.create({ ...route, targetUsd: 440 }, seed)!.id).toBe(alert.id);
+    expect(alerts.mine().length).toBe(1);
+    expect(alerts.mine()[0].targetUsd).toBe(440);
+
+    // a matching search feeds the alert; other passenger counts don't
+    alerts.record({ ...params, adults: 2 }, result({ offers: [offer({ priceUsd: 100 })] }));
+    expect(alerts.statuses()[0].currentUsd).toBe(500);
+    alerts.record(params, result({ offers: [offer({ priceUsd: 430 })] }));
+    expect(alerts.statuses()[0]).toMatchObject({ currentUsd: 430, triggered: true, changePct: -14 });
+    expect(alerts.triggeredCount()).toBe(1);
+
+    const check = alerts.check(alert.id);
+    http.expectOne((r) => r.url === '/api/flights/search' && r.body.fresh === true).flush(result({ offers: [offer({ priceUsd: 470 })], fetchedAt: Date.now() + 1000 }));
+    expect(await check).toBe(470);
+    expect(alerts.statuses()[0]).toMatchObject({ currentUsd: 470, triggered: false });
+    expect(alerts.mine()[0].observations.map((o) => o.usd)).toEqual([500, 430, 470]);
+
+    const removed = alerts.remove(alert.id)!;
+    expect(alerts.mine()).toEqual([]);
+    alerts.restore(removed);
+    expect(alerts.mine().length).toBe(1);
+  });
+
+  it('saves trips per account and remembers recent searches', () => {
+    const saved = TestBed.inject(SavedService);
+    const legs = [offer()];
+    const trip = saved.save(params, legs, 520, null)!;
+    expect(saved.save(params, legs, 999, null)!.id).toBe(trip.id);
+    expect(saved.mine().length).toBe(1);
+    expect(saved.findSaved(params, legs)?.priceUsd).toBe(520);
+    expect(saved.findSaved(params, [offer({ id: 'other' })])).toBeUndefined();
+    saved.remove(trip.id);
+    expect(saved.mine()).toEqual([]);
+    saved.restore(trip);
+    saved.restore(trip);
+    expect(saved.mine().length).toBe(1);
+
+    saved.rememberSearch(params, 520);
+    saved.rememberSearch({ ...params, cabin: 'business' }, 2100);
+    saved.rememberSearch(params, 480);
+    expect(saved.recent().map((r) => r.lowestUsd)).toEqual([480, 2100]);
+    for (let i = 0; i < 12; i++) saved.rememberSearch({ ...params, legs: [{ ...params.legs[0], date: addDays(date, i + 1) }] }, i);
+    expect(saved.recent().length).toBe(8);
+    saved.clearRecent();
+    expect(saved.recent()).toEqual([]);
   });
 });

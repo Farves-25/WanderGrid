@@ -1,5 +1,4 @@
 export type Cabin = 'economy' | 'premium' | 'business' | 'first';
-export type FareFamily = 'basic' | 'standard' | 'flex';
 export type TripType = 'oneway' | 'round' | 'multi';
 export type DstRule = 'eu' | 'us' | 'au' | 'nz' | 'none';
 
@@ -14,21 +13,6 @@ export interface Airport {
   /** Standard UTC offset in hours. */
   tz: number;
   dst: DstRule;
-}
-
-export interface Airline {
-  code: string;
-  name: string;
-  country: string;
-  hubs: string[];
-  /** 1–5 service rating. */
-  quality: number;
-  priceFactor: number;
-  color: string;
-  alliance: 'Star Alliance' | 'oneworld' | 'SkyTeam' | null;
-  lcc: boolean;
-  premium: boolean;
-  first: boolean;
 }
 
 export interface SearchLeg {
@@ -47,153 +31,141 @@ export interface SearchParams {
   cabin: Cabin;
 }
 
-export interface AircraftInfo {
-  name: string;
-  widebody: boolean;
-  wifi: boolean;
-  power: boolean;
-  entertainment: boolean;
-}
-
+/** One flight of an itinerary, as published by the airline. Times are local to each airport: `YYYY-MM-DD HH:MM`. */
 export interface Segment {
-  id: string;
   airline: string;
+  airlineLogo: string | null;
+  /** e.g. "BA 117" */
   flightNo: string;
-  aircraft: AircraftInfo;
+  aircraft: string | null;
+  cabin: string | null;
   from: string;
+  fromName: string;
   to: string;
-  depUtc: number;
-  arrUtc: number;
+  toName: string;
+  dep: string;
+  arr: string;
   durationMin: number;
-  distanceKm: number;
+  legroom: string | null;
+  /** Amenity notes from the airline, e.g. "Wi-Fi for a fee", "In-seat power outlet". */
+  extensions: string[];
+  overnight: boolean;
+  oftenDelayed: boolean;
+  operatedBy: string | null;
+  alsoSoldBy: string[];
 }
 
 export interface Layover {
   airport: string;
+  name: string;
   minutes: number;
   overnight: boolean;
 }
 
-export interface Fare {
-  family: FareFamily;
-  /** Per adult, USD, base fare. */
-  base: number;
-  /** Per adult, USD, taxes & carrier charges. */
-  taxes: number;
-  /** Per adult, USD, total. */
-  total: number;
-  checkedBags: number;
-  bagKg: number;
-  cabinBag: boolean;
-  seatSelection: 'paid' | 'free';
-  changeFeeUsd: number | null;
-  refund: 'none' | 'partial' | 'full';
-  cancelFeeUsd: number;
-  milesPct: number;
-  priorityBoarding: boolean;
-}
-
+/** A live itinerary for one leg of the trip. */
 export interface FlightOffer {
   id: string;
   legIndex: number;
-  cabin: Cabin;
+  /** Listed by Google Flights among its "best" options. */
+  best: boolean;
   segments: Segment[];
+  layovers: Layover[];
+  /** Airline names, in order of appearance. */
   airlines: string[];
-  depUtc: number;
-  arrUtc: number;
+  logo: string | null;
+  dep: string;
+  arr: string;
   durationMin: number;
   stops: number;
-  layovers: Layover[];
-  seatsLeft: number;
-  co2Kg: number;
-  onTimePct: number;
-  distanceKm: number;
-  fares: Record<FareFamily, Fare>;
+  /** Price in USD for the whole trip and all travelers, or null when the airline doesn't publish one. */
+  priceUsd: number | null;
+  /** "Round trip", "One way" … as labelled by the source. */
+  tripType: string | null;
+  co2Kg: number | null;
+  co2TypicalKg: number | null;
+  co2DiffPct: number | null;
+  extensions: string[];
+  /** Token that unlocks the next leg's flights (round trip / multi-city). */
+  nextToken: string | null;
+  /** Token that unlocks the list of booking sites. Present on the final leg. */
+  bookingToken: string | null;
 }
 
-export interface SelectedFlight {
-  offer: FlightOffer;
-  family: FareFamily;
+export interface PriceInsights {
+  lowestUsd: number | null;
+  /** "low" | "typical" | "high" */
+  level: string | null;
+  typicalRange: [number, number] | null;
+  /** [epoch ms, USD] oldest → newest */
+  history: [number, number][];
 }
 
-export type PaxType = 'adult' | 'child' | 'infant';
-
-export interface Passenger {
-  type: PaxType;
-  title: 'Mr' | 'Ms' | 'Mrs' | 'Mx' | '';
-  firstName: string;
-  lastName: string;
-  dob: string;
-  gender: 'M' | 'F' | 'X' | '';
-  nationality: string;
-  passportNo: string;
-  passportExpiry: string;
-  passportCountry: string;
+export interface SearchResult {
+  offers: FlightOffer[];
+  insights: PriceInsights | null;
+  googleUrl: string | null;
+  fetchedAt: number;
+  cached: boolean;
 }
 
-export interface Contact {
-  email: string;
-  phone: string;
+export interface BookingRequest {
+  url: string;
+  /** URL-encoded form body to POST to `url`; null means a plain link. */
+  postData: string | null;
 }
 
-export type MealCode = 'standard' | 'vegetarian' | 'vegan' | 'halal' | 'kosher' | 'gluten-free' | 'child';
-export type InsurancePlan = 'none' | 'basic' | 'plus';
-
-export interface Extras {
-  /** key: `${legIndex}|${paxIndex}` → extra checked bags */
-  bags: Record<string, number>;
-  /** key: `${segmentId}|${paxIndex}` → seat label */
-  seats: Record<string, string>;
-  /** key: `${segmentId}|${paxIndex}` → meal */
-  meals: Record<string, MealCode>;
-  insurance: InsurancePlan;
-  priority: boolean;
-  offset: boolean;
+export interface BookingPart {
+  scope: 'together' | 'departing' | 'returning';
+  seller: string;
+  isAirline: boolean;
+  logos: string[];
+  /** Fare name, e.g. "Basic Economy". */
+  title: string | null;
+  priceUsd: number | null;
+  flightNos: string[];
+  extensions: string[];
+  baggage: string[];
+  request: BookingRequest | null;
+  phone: string | null;
+  phoneFeeUsd: number | null;
 }
 
-export interface PriceLine {
-  label: string;
-  usd: number;
+export interface BookingOption {
+  /** True when outbound and return are sold as two separate tickets. */
+  separate: boolean;
+  parts: BookingPart[];
+  totalUsd: number | null;
 }
 
-export interface Pricing {
-  fare: number;
-  taxes: number;
-  seats: number;
-  bags: number;
-  insurance: number;
-  priority: number;
-  offset: number;
-  discount: number;
-  totalUsd: number;
+export interface BookingResult {
+  options: BookingOption[];
+  selected: FlightOffer[];
+  baggage: string[];
+  insights: PriceInsights | null;
+  googleUrl: string | null;
+  fetchedAt: number;
+  cached: boolean;
 }
 
-export interface BookingEvent {
+export interface ApiAccount {
+  plan: string | null;
+  searchesPerMonth: number | null;
+  searchesLeft: number | null;
+  usedThisMonth: number | null;
+  usedThisHour: number | null;
+  hourlyLimit: number | null;
+}
+
+export interface ApiStatus {
+  configured: boolean;
+  keyValid?: boolean;
+  account: ApiAccount | null;
+}
+
+export interface PricePoint {
+  /** ISO timestamp of the observation. */
   at: string;
-  text: string;
-}
-
-export interface Booking {
-  id: string;
-  userId: string;
-  ref: string;
-  status: 'confirmed' | 'cancelled';
-  createdAt: string;
-  params: SearchParams;
-  legs: SelectedFlight[];
-  passengers: Passenger[];
-  contact: Contact;
-  extras: Extras;
-  pricing: Pricing;
-  currency: string;
-  rate: number;
-  promo: string | null;
-  payment: { brand: string; last4: string };
-  tickets: string[];
-  checkedIn: Record<number, boolean>;
-  events: BookingEvent[];
-  milesEarned: number;
-  refundedUsd: number;
+  usd: number;
 }
 
 export interface PriceAlert {
@@ -207,10 +179,30 @@ export interface PriceAlert {
   targetUsd: number;
   createdAt: string;
   createdPriceUsd: number;
+  /** Lowest live price seen each time the route was checked (1 adult). */
+  observations: PricePoint[];
+  /** Google Flights' own price history for the route at the last check. */
+  history: [number, number][];
+  level: string | null;
+  typicalRange: [number, number] | null;
+  lastCheckedAt: string;
 }
 
-export interface SavedTraveler extends Passenger {
+export interface SavedTrip {
   id: string;
+  userId: string;
+  savedAt: string;
+  params: SearchParams;
+  legs: FlightOffer[];
+  priceUsd: number | null;
+  googleUrl: string | null;
+}
+
+export interface RecentSearch {
+  params: SearchParams;
+  at: string;
+  /** Lowest live price seen for this search, USD. */
+  lowestUsd: number | null;
 }
 
 export const CABIN_LABEL: Record<Cabin, string> = {
@@ -220,22 +212,7 @@ export const CABIN_LABEL: Record<Cabin, string> = {
   first: 'First',
 };
 
-export const FAMILY_LABEL: Record<FareFamily, string> = {
-  basic: 'Basic',
-  standard: 'Standard',
-  flex: 'Flex',
-};
-
-export const MEAL_LABEL: Record<MealCode, string> = {
-  standard: 'Regular meal',
-  vegetarian: 'Vegetarian',
-  vegan: 'Vegan',
-  halal: 'Halal',
-  kosher: 'Kosher',
-  'gluten-free': 'Gluten-free',
-  child: "Child's meal",
-};
-
+/** Display currencies. `rate` is only a fallback for when live exchange rates can't be loaded. */
 export const CURRENCIES: readonly { code: string; name: string; rate: number }[] = [
   { code: 'USD', name: 'US Dollar', rate: 1 },
   { code: 'EUR', name: 'Euro', rate: 0.92 },

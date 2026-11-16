@@ -1,13 +1,16 @@
 import { Service, computed, inject, signal } from '@angular/core';
 import { CURRENCIES } from '../models/flight.model';
 import { OfflineCacheService } from './offline-cache.service';
+import { RatesService } from './rates.service';
 
 @Service()
 export class PreferencesService {
   private readonly cache = inject(OfflineCacheService);
 
   readonly currency = signal<string>(this.initialCurrency());
-  readonly rate = computed(() => CURRENCIES.find((c) => c.code === this.currency())?.rate ?? 1);
+  private readonly rates = inject(RatesService);
+
+  readonly rate = computed(() => this.rates.rate(this.currency()));
   readonly lastFrom = signal<string>(this.cache.read<string>('wg:last-from', 'LHR'));
 
   private initialCurrency(): string {

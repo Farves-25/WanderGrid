@@ -28,7 +28,7 @@ type Mode = 'signin' | 'signup';
             <button type="button" class="tab flex-1 justify-center" [attr.aria-pressed]="mode() === 'signup'" (click)="setMode('signup')">Create account</button>
           </div>
           <h2 id="auth-title" class="text-2xl font-bold">{{ mode() === 'signin' ? 'Welcome back' : 'Join WanderGrid' }}</h2>
-          <p class="mt-1.5 text-sm text-muted">{{ mode() === 'signin' ? 'Sign in to check out and manage your trips.' : 'Create an account to book flights and earn WanderMiles.' }}</p>
+          <p class="mt-1.5 text-sm text-muted">{{ mode() === 'signin' ? 'Sign in to save trips and track prices.' : 'Create an account to save trips and set price alerts.' }}</p>
 
           <form class="mt-6 grid gap-4" [formGroup]="form" (ngSubmit)="submit()" novalidate>
             @if (mode() === 'signup') {
@@ -58,7 +58,7 @@ type Mode = 'signin' | 'signup';
               {{ busy() ? 'Please wait…' : mode() === 'signin' ? 'Sign in' : 'Create account' }} <app-icon name="arrow-right" [size]="18" />
             </button>
           </form>
-          <p class="mt-5 flex items-center gap-2 text-xs text-faint"><app-icon name="lock" [size]="13" /> Demo accounts are stored only in this browser.</p>
+          <p class="mt-5 flex items-center gap-2 text-xs text-faint"><app-icon name="lock" [size]="13" /> Your account is stored only in this browser.</p>
         </div>
       </section>
     </div>
@@ -75,10 +75,10 @@ export class LoginComponent {
   protected readonly busy = signal(false);
   protected readonly error = signal('');
   protected readonly perks = [
-    { icon: 'ticket', text: 'Instant e-tickets with QR boarding passes' },
+    { icon: 'bookmark', text: 'Save itineraries and come back to them later' },
     { icon: 'bell-ring', text: 'Price alerts that watch fares for you' },
-    { icon: 'award', text: 'Earn WanderMiles on every flight' },
-    { icon: 'users', text: 'Save travelers for one-tap checkout' },
+    { icon: 'external-link', text: 'Book directly with airlines and travel sites' },
+    { icon: 'chart-line', text: 'See live prices and price history' },
   ];
 
   protected readonly form = this.fb.group({
@@ -110,7 +110,7 @@ export class LoginComponent {
         return;
       }
       const r = this.redirect();
-      await this.router.navigateByUrl(r && r.startsWith('/') && !r.startsWith('//') ? r : '/bookings');
+      await this.router.navigateByUrl(r && r.startsWith('/') && !r.startsWith('//') ? r : '/saved');
     } finally {
       this.busy.set(false);
     }

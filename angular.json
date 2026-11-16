@@ -17,9 +17,6 @@
           "builder": "@angular/build:application",
           "options": {
             "browser": "src/main.ts",
-            "allowedCommonJsDependencies": [
-              "qrcode"
-            ],
             "tsConfig": "tsconfig.app.json",
             "assets": [
               {
@@ -74,7 +71,10 @@
               "buildTarget": "WanderGrid:build:development"
             }
           },
-          "defaultConfiguration": "development"
+          "defaultConfiguration": "development",
+          "options": {
+            "proxyConfig": "proxy.conf.json"
+          }
         },
         "test": {
           "builder": "@angular/build:unit-test"

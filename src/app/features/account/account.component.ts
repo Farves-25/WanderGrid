@@ -1,23 +1,17 @@
 import { DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { AlertsService } from '../../core/services/alerts.service';
 import { AuthService } from '../../core/services/auth.service';
-import { BookingsService } from '../../core/services/bookings.service';
-import { ConfirmService } from '../../core/services/confirm.service';
+import { FlightSearchService } from '../../core/services/flight-search.service';
+import { RatesService } from '../../core/services/rates.service';
+import { SavedService } from '../../core/services/saved.service';
 import { ToastService } from '../../core/services/toast.service';
-import { TravelersService } from '../../core/services/travelers.service';
-import { countryName } from '../../core/util/passenger-validation';
 import { IconComponent } from '../../shared/components/icon.component';
-
-const TIERS = [
-  { name: 'Explorer', min: 0, perk: 'Earn WanderMiles on every flight' },
-  { name: 'Silver', min: 5_000, perk: 'Priority support' },
-  { name: 'Gold', min: 20_000, perk: 'Free seat selection on Basic fares' },
-  { name: 'Platinum', min: 50_000, perk: 'Lounge guide & bonus miles' },
-];
 
 @Component({
   selector: 'app-account',
-  imports: [DecimalPipe, IconComponent],
+  imports: [DecimalPipe, IconComponent, RouterLink],
   template: `
     <div class="page">
       <h1 class="rise text-4xl font-bold sm:text-5xl">Your <span class="gradient-text">account</span></h1>
@@ -28,7 +22,7 @@ const TIERS = [
           <form class="mt-4 grid gap-4" (submit)="saveName($event)">
             <div>
               <label class="label" for="acc-name">Full name</label>
-              <input id="acc-name" class="input" [value]="name()" maxlength="60" (input)="name.set($any($event.target).value)" />
+              <input id="acc-name" class="input" [value]="name()" maxlength="60" autocomplete="name" (input)="name.set($any($event.target).value)" />
             </div>
             <div>
               <label class="label" for="acc-email">Email</label>
@@ -36,46 +30,54 @@ const TIERS = [
             </div>
             <div><button type="submit" class="btn btn-primary btn-sm">Save profile</button></div>
           </form>
+          <dl class="mt-6 grid grid-cols-2 gap-3 text-center">
+            <div class="stat !p-3"><dt class="stat-label">Saved trips</dt><dd class="stat-value !text-xl"><a routerLink="/saved" class="hover:underline">{{ saved.mine().length }}</a></dd></div>
+            <div class="stat !p-3"><dt class="stat-label">Price alerts</dt><dd class="stat-value !text-xl"><a routerLink="/alerts" class="hover:underline">{{ alerts.mine().length }}</a></dd></div>
+          </dl>
         </section>
 
-        <section class="miles-card rise [animation-delay:60ms]" aria-labelledby="miles-h">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <h2 id="miles-h" class="text-sm font-bold uppercase tracking-widest text-white/80">WanderMiles</h2>
-              <p class="mt-1 font-display text-5xl font-bold">{{ bookings.miles() | number }}</p>
-              <p class="mt-1 text-white/90">{{ tier().name }} member · {{ tier().perk }}</p>
-            </div>
-            <app-icon name="award" [size]="40" />
+        <section class="card rise p-6 [animation-delay:60ms]" aria-labelledby="data-h">
+          <div class="flex items-start justify-between gap-3">
+            <h2 id="data-h" class="flex items-center gap-2 text-xl font-bold"><app-icon name="database" [size]="19" /> Live data</h2>
+            <button type="button" class="btn btn-sm" [disabled]="checking()" (click)="recheck()"><app-icon name="refresh-cw" [size]="14" /> {{ checking() ? 'Checking…' : 'Refresh' }}</button>
           </div>
-          @if (next(); as n) {
-            <div class="mt-5">
-              <div class="h-2 overflow-hidden rounded-full bg-white/25" role="progressbar" aria-label="Progress to next tier" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="progress()"><div class="h-full rounded-full bg-white" [style.width.%]="progress()"></div></div>
-              <p class="mt-2 text-sm text-white/90">{{ n.min - bookings.miles() | number }} miles to {{ n.name }}</p>
-            </div>
-          }
-        </section>
 
-        <section class="card rise p-6 lg:col-span-2 [animation-delay:100ms]" aria-labelledby="trav-h">
-          <div class="flex items-center justify-between gap-3">
-            <h2 id="trav-h" class="text-xl font-bold">Saved travelers</h2>
-            <span class="badge">{{ travelers.mine().length }}</span>
-          </div>
-          <p class="mt-1 text-sm text-muted">Saved automatically at checkout so you can autofill next time. Stored only on this device.</p>
-          @if (travelers.mine().length > 0) {
-            <ul class="mt-4 grid gap-3 sm:grid-cols-2">
-              @for (t of travelers.mine(); track t.id) {
-                <li class="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-solid-2)] p-4">
-                  <div class="min-w-0">
-                    <p class="truncate font-semibold">{{ t.title }} {{ t.firstName }} {{ t.lastName }}</p>
-                    <p class="truncate text-xs text-muted">{{ countryName(t.nationality) }} · passport {{ mask(t.passportNo) }} · born {{ t.dob }}</p>
+          <div class="mt-4" aria-live="polite">
+            @if (state() === 'loading') {
+              <p class="text-sm text-muted">Checking the flight data connection…</p>
+            } @else if (state() === 'unreachable') {
+              <p class="flex items-center gap-2 font-semibold text-danger"><app-icon name="circle-alert" [size]="17" /> API server not reachable</p>
+              <p class="mt-1 text-sm text-muted">Start the app with <code>npm start</code> so the WanderGrid API server runs alongside it.</p>
+            } @else if (state() === 'missing') {
+              <p class="flex items-center gap-2 font-semibold text-warn"><app-icon name="key-round" [size]="17" /> No SerpApi key configured</p>
+              <p class="mt-1 text-sm text-muted">Copy <code>.env.example</code> to <code>.env</code>, set <code>SERPAPI_KEY</code> and restart. A free key is available at serpapi.com.</p>
+            } @else if (state() === 'invalid') {
+              <p class="flex items-center gap-2 font-semibold text-danger"><app-icon name="circle-alert" [size]="17" /> SerpApi rejected the key</p>
+              <p class="mt-1 text-sm text-muted">Check <code>SERPAPI_KEY</code> in <code>.env</code> and restart the server.</p>
+            } @else {
+              <p class="flex items-center gap-2 font-semibold text-ok"><app-icon name="circle-check" [size]="17" /> Connected to Google Flights via SerpApi</p>
+              @if (api.status()?.account; as acc) {
+                <dl class="mt-4 grid grid-cols-2 gap-3 text-center sm:grid-cols-3">
+                  <div class="stat !p-3"><dt class="stat-label">Plan</dt><dd class="stat-value !text-base">{{ acc.plan ?? '—' }}</dd></div>
+                  <div class="stat !p-3"><dt class="stat-label">Searches left</dt><dd class="stat-value !text-xl">{{ acc.searchesLeft === null ? '—' : (acc.searchesLeft | number) }}</dd></div>
+                  <div class="stat !p-3"><dt class="stat-label">This hour</dt><dd class="stat-value !text-xl">{{ acc.usedThisHour ?? '—' }}@if (acc.hourlyLimit !== null) { <span class="text-sm font-normal text-muted">/ {{ acc.hourlyLimit }}</span> }</dd></div>
+                </dl>
+                @if (quotaPct(); as pct) {
+                  <div class="mt-4">
+                    <div class="h-2 overflow-hidden rounded-full bg-[var(--border)]" role="progressbar" aria-label="Monthly searches used" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="pct.used"><div class="h-full rounded-full bg-[var(--accent)]" [style.width.%]="pct.used"></div></div>
+                    <p class="mt-2 text-sm text-muted">{{ acc.usedThisMonth | number }} of {{ acc.searchesPerMonth | number }} monthly searches used. Repeating a search within the hour is free.</p>
                   </div>
-                  <button type="button" class="icon-btn icon-btn-danger" [attr.aria-label]="'Remove ' + t.firstName + ' ' + t.lastName" (click)="remove(t.id, t.firstName)"><app-icon name="trash-2" [size]="17" /></button>
-                </li>
+                }
+              } @else {
+                <p class="mt-1 text-sm text-muted">Usage details aren't available right now.</p>
               }
-            </ul>
-          } @else {
-            <p class="mt-4 rounded-2xl border border-dashed border-[var(--border-strong)] p-8 text-center text-muted">No saved travelers yet.</p>
-          }
+            }
+          </div>
+
+          <p class="mt-5 border-t border-[var(--border)] pt-4 text-sm text-muted">
+            <app-icon name="globe" [size]="14" />
+            @if (ratesDate(); as d) { Exchange rates updated {{ d }}. } @else { Live exchange rates are unavailable — using built-in estimates. }
+          </p>
         </section>
       </div>
     </div>
@@ -83,24 +85,44 @@ const TIERS = [
 })
 export class AccountComponent {
   protected readonly auth = inject(AuthService);
-  protected readonly bookings = inject(BookingsService);
-  protected readonly travelers = inject(TravelersService);
+  protected readonly api = inject(FlightSearchService);
+  protected readonly saved = inject(SavedService);
+  protected readonly alerts = inject(AlertsService);
+  private readonly rates = inject(RatesService);
   private readonly toast = inject(ToastService);
-  private readonly confirm = inject(ConfirmService);
 
   protected readonly name = signal(this.auth.user()?.name ?? '');
-  protected readonly countryName = countryName;
+  protected readonly checking = signal(true);
+  private readonly reachable = signal(true);
 
-  protected readonly tier = computed(() => [...TIERS].reverse().find((t) => this.bookings.miles() >= t.min) ?? TIERS[0]);
-  protected readonly next = computed(() => TIERS.find((t) => t.min > this.bookings.miles()) ?? null);
-  protected readonly progress = computed(() => {
-    const n = this.next();
-    const cur = this.tier();
-    return n ? Math.round(((this.bookings.miles() - cur.min) / (n.min - cur.min)) * 100) : 100;
+  protected readonly state = computed<'loading' | 'unreachable' | 'missing' | 'invalid' | 'ok'>(() => {
+    const s = this.api.status();
+    if (!this.reachable()) return 'unreachable';
+    if (!s) return 'loading';
+    if (!s.configured) return 'missing';
+    return s.keyValid === false ? 'invalid' : 'ok';
   });
 
-  protected mask(no: string): string {
-    return no.length > 3 ? `••••${no.slice(-3)}` : no;
+  protected readonly quotaPct = computed(() => {
+    const a = this.api.status()?.account;
+    if (!a || a.searchesPerMonth === null || a.usedThisMonth === null || a.searchesPerMonth <= 0) return null;
+    return { used: Math.min(100, Math.round((a.usedThisMonth / a.searchesPerMonth) * 100)) };
+  });
+
+  protected readonly ratesDate = computed(() => {
+    const at = this.rates.updatedAt();
+    return at === null ? '' : new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(at));
+  });
+
+  constructor() {
+    void this.recheck();
+  }
+
+  protected async recheck(): Promise<void> {
+    this.checking.set(true);
+    const s = await this.api.refreshStatus();
+    this.reachable.set(s !== null);
+    this.checking.set(false);
   }
 
   protected saveName(e: Event): void {
@@ -111,10 +133,5 @@ export class AccountComponent {
     }
     this.auth.updateName(this.name());
     this.toast.success('Profile saved');
-  }
-
-  protected async remove(id: string, first: string): Promise<void> {
-    const ok = await this.confirm.ask({ title: `Remove ${first}?`, message: 'This traveler will no longer appear in autofill.', confirmLabel: 'Remove', danger: true });
-    if (ok) this.travelers.remove(id);
   }
 }

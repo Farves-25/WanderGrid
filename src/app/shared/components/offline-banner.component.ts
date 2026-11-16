@@ -9,7 +9,7 @@ import { IconComponent } from './icon.component';
     @if (!cache.online()) {
       <div class="offline-banner offline-banner-warn" role="status" aria-live="polite">
         <app-icon name="triangle-alert" [size]="16" />
-        <span>You're offline — your bookings, e-tickets and boarding passes are still available.</span>
+        <span>You're offline — saved trips and alerts are still available, but live prices need a connection.</span>
       </div>
     }
   `,

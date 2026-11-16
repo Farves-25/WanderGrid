@@ -1,127 +1,258 @@
-/* Flight-booking specific components. Uses the design tokens from styles.css. */
+/* Flight-specific components. Uses the design tokens from styles.css. */
 @layer components {
   .nav-link {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 8px;
     min-height: 38px;
-    padding: 0 14px;
-    border-radius: 12px;
+    padding: 0 12px;
+    border-radius: 999px;
     font-size: 0.9rem;
     font-weight: 600;
     color: var(--muted);
-    transition:
-      background 0.15s,
-      color 0.15s;
+    transition: color 0.15s;
   }
   .nav-link:hover {
     color: var(--text);
-    background: var(--surface-2);
   }
   .nav-link.is-active {
     color: var(--text);
-    background: var(--accent-soft);
   }
-  .tab[aria-pressed='true'] {
-    color: #fff;
-    background: linear-gradient(135deg, var(--btn-from), var(--btn-to));
-    box-shadow: 0 8px 22px -10px rgba(91, 61, 245, 0.9);
+  .nav-link.is-active::after {
+    content: '';
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: -13px;
+    height: 2px;
+    background: var(--accent);
   }
 
-  .spinner {
+  /* ── Hero ── */
+  .hero-title {
+    font-size: clamp(2.9rem, 7.2vw, 5.6rem);
+    line-height: 0.98;
+    letter-spacing: -0.035em;
+    font-weight: 500;
+  }
+  .hero-art {
+    position: relative;
+    height: 23rem;
+  }
+  .pass {
+    position: absolute;
+    display: grid;
+    grid-template-columns: 1fr 7.25rem;
+    width: 30rem;
+    right: 0;
+    top: 3.25rem;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow);
+    transform: rotate(-3deg);
+  }
+  .pass-main {
+    padding: 22px 24px;
+  }
+  .pass-stub {
+    position: relative;
+    display: grid;
+    align-content: space-between;
+    padding: 22px 18px;
+    border-left: 1.5px dashed var(--border-strong);
+  }
+  .pass-stub::before,
+  .pass-stub::after {
+    content: '';
+    position: absolute;
+    left: -10px;
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    border: 2.5px solid rgba(255, 255, 255, 0.35);
-    border-top-color: #fff;
-    animation: spin 0.7s linear infinite;
+    background: var(--bg);
+    border: 1px solid var(--border-strong);
   }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
+  .pass-stub::before {
+    top: -10px;
+    clip-path: inset(50% 0 0 0);
   }
-
-  /* Hero */
-  .hero-orbit {
-    position: relative;
-    width: 560px;
-    height: 340px;
-    margin-left: auto;
-    transform-origin: right center;
+  .pass-stub::after {
+    bottom: -10px;
+    clip-path: inset(0 0 50% 0);
   }
-  .plane-fly {
+  .pass-k {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .pass-v {
+    font-size: 0.86rem;
+    font-weight: 600;
+  }
+  .pass-code {
+    font-family: var(--font-display);
+    font-size: 3.1rem;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .barcode {
+    height: 100%;
+    min-height: 5.5rem;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--text) 0 2px,
+      transparent 2px 5px,
+      var(--text) 5px 6px,
+      transparent 6px 10px,
+      var(--text) 10px 13px,
+      transparent 13px 15px
+    );
+    opacity: 0.85;
+  }
+  .hero-note {
     position: absolute;
-    left: 0;
+    left: 0.5rem;
+    bottom: 0.25rem;
+    width: 15.5rem;
+    padding: 16px 18px;
+    border-radius: 16px;
+    background: var(--ink);
+    color: var(--ink-fg);
+    box-shadow: var(--shadow);
+    transform: rotate(2.5deg);
+  }
+  .hero-stamp {
+    position: absolute;
+    right: 1.5rem;
     top: 0;
     display: grid;
     place-items: center;
-    width: 44px;
-    height: 44px;
+    width: 6.4rem;
+    height: 6.4rem;
     border-radius: 50%;
-    color: #fff;
-    background: linear-gradient(135deg, var(--btn-from), var(--btn-to));
-    box-shadow: 0 10px 30px -8px rgba(91, 61, 245, 0.9);
-    offset-path: path('M40 270 C 160 40, 400 40, 520 90');
-    offset-rotate: auto 45deg;
-    animation: fly 9s ease-in-out infinite alternate;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    text-align: center;
+    line-height: 1.5;
+    transform: rotate(12deg);
+    box-shadow: inset 0 0 0 4px var(--bg), inset 0 0 0 5px var(--accent);
   }
-  @keyframes fly {
-    from {
-      offset-distance: 0%;
-    }
-    to {
-      offset-distance: 100%;
+
+  /* Search panel sits on a hairline rule, like a form in a timetable */
+  .search-panel {
+    padding: 18px;
+  }
+  @media (min-width: 640px) {
+    .search-panel {
+      padding: 26px 28px;
     }
   }
 
+  /* ── Destination cards (luggage tags) ── */
   .deal-card {
     position: relative;
     overflow: hidden;
-    border-radius: 22px;
+    border-radius: 18px;
     border: 1px solid var(--border);
-    background: var(--surface-solid);
-    box-shadow: var(--shadow-sm);
+    background: var(--surface);
     transition:
-      transform 0.3s cubic-bezier(0.2, 0.8, 0.3, 1),
-      box-shadow 0.3s;
+      transform 0.25s cubic-bezier(0.2, 0.8, 0.3, 1),
+      box-shadow 0.25s,
+      border-color 0.25s;
   }
   .deal-card:hover {
-    transform: translateY(-5px);
+    transform: translateY(-4px);
+    border-color: var(--border-strong);
     box-shadow: var(--shadow);
   }
   .deal-cover {
-    display: grid;
-    place-items: center;
-    height: 112px;
-    background:
-      radial-gradient(120% 140% at 15% 0%, hsl(var(--h1) 80% 58% / 0.95), transparent 60%),
-      radial-gradient(110% 130% at 100% 10%, hsl(var(--h2) 85% 56% / 0.9), transparent 58%),
-      radial-gradient(100% 120% at 50% 120%, hsl(var(--h3) 80% 52% / 0.8), transparent 60%),
-      hsl(var(--h1) 45% 20%);
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    height: 118px;
+    padding: 14px 16px;
+    background: hsl(var(--h1) var(--tag-s) var(--tag-l));
+    color: var(--text);
+  }
+  .deal-cover::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--surface);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 25%, transparent);
+  }
+  .deal-code {
+    font-family: var(--font-display);
+    font-size: 3.2rem;
+    font-weight: 500;
+    line-height: 0.9;
+    letter-spacing: -0.04em;
   }
 
-  /* Flight cards */
+  .feature-num {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  /* ── Flight cards ── */
   .flight-card {
-    overflow: hidden;
-    border-radius: 22px;
+    border-radius: 18px;
     border: 1px solid var(--border);
-    background: var(--surface-solid);
+    background: var(--surface);
     box-shadow: var(--shadow-sm);
     transition:
       border-color 0.2s,
-      box-shadow 0.2s,
-      transform 0.2s;
+      box-shadow 0.2s;
   }
   .flight-card:hover {
     border-color: var(--border-strong);
     box-shadow: var(--shadow);
   }
   .flight-card.is-selected {
-    border-color: color-mix(in srgb, var(--accent) 70%, transparent);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent),
-      0 18px 44px -20px rgba(124, 92, 255, 0.6);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  /* price column: a perforated ticket stub */
+  .ticket-stub {
+    position: relative;
+    border-top: 1.5px dashed var(--border-strong);
+  }
+  @media (min-width: 768px) {
+    .ticket-stub {
+      border-top: 0;
+      border-left: 1.5px dashed var(--border-strong);
+    }
+  }
+  .flight-time {
+    font-family: var(--font-display);
+    font-size: 1.85rem;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  .flight-price {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
   }
   .route-line {
     position: relative;
@@ -137,18 +268,15 @@
     left: 4px;
     right: 4px;
     top: 50%;
-    height: 2px;
-    border-radius: 2px;
-    background: linear-gradient(90deg, var(--accent), var(--border-strong));
+    border-top: 1.5px solid var(--border-strong);
   }
   .route-dot {
     position: relative;
     z-index: 1;
-    width: 9px;
-    height: 9px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: var(--surface-solid);
-    border: 2px solid var(--accent);
+    background: var(--text);
   }
   .route-stop {
     position: relative;
@@ -156,35 +284,26 @@
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background: var(--warn);
+    background: var(--surface);
+    border: 2px solid var(--accent);
   }
   .seg-rail {
     position: relative;
     padding-left: 18px;
     padding-bottom: 6px;
-    border-left: 2px dashed var(--border-strong);
-  }
-  .fare-col {
-    padding: 16px;
-    border-radius: 18px;
-    border: 1px solid var(--border);
-    background: var(--surface-solid);
-    transition: border-color 0.2s;
-  }
-  .fare-col.is-picked {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent);
+    border-left: 1.5px solid var(--border-strong);
   }
 
+  /* ── Itinerary stepper ── */
   .leg-step {
-    padding: 12px 14px;
-    border-radius: 16px;
+    padding: 14px 16px;
+    border-radius: 14px;
     border: 1px solid var(--border);
     background: var(--surface);
   }
   .leg-step.is-active {
-    border-color: color-mix(in srgb, var(--accent) 65%, transparent);
-    background: var(--accent-soft);
+    border-color: var(--text);
+    box-shadow: inset 0 -3px 0 var(--accent);
   }
   .step-dot {
     display: grid;
@@ -193,65 +312,24 @@
     width: 30px;
     height: 30px;
     border-radius: 50%;
-    border: 2px solid var(--border-strong);
-    font-size: 0.8rem;
-    font-weight: 700;
+    border: 1.5px solid var(--border-strong);
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    font-weight: 600;
     color: var(--muted);
   }
-  .step-dot.is-active,
   .leg-step.is-active .step-dot {
-    border-color: transparent;
-    color: #fff;
-    background: linear-gradient(135deg, var(--btn-from), var(--btn-to));
+    border-color: var(--ink);
+    color: var(--ink-fg);
+    background: var(--ink);
   }
-  .step-dot.is-done,
   .leg-step.is-done .step-dot {
     border-color: transparent;
-    color: #fff;
-    background: #059669;
-  }
-
-  .cal-day {
-    display: grid;
-    gap: 2px;
-    min-width: 6.4rem;
-    padding: 10px 14px;
-    text-align: center;
-    border-radius: 14px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    transition: all 0.15s;
-  }
-  .cal-day:hover:not(:disabled) {
-    border-color: var(--border-strong);
-    transform: translateY(-1px);
-  }
-  .cal-day:disabled {
-    opacity: 0.45;
-  }
-  .cal-day.is-on {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-  }
-  .cal-day.is-low .font-display {
     color: var(--ok);
+    background: var(--ok-bg);
   }
 
-  .continue-bar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 45;
-    padding: 12px 0;
-    border-top: 1px solid var(--border-strong);
-    background: color-mix(in srgb, var(--bg) 82%, transparent);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    animation: rise 0.35s ease backwards;
-  }
-
+  /* ── Filters ── */
   .opt {
     display: flex;
     align-items: center;
@@ -268,308 +346,52 @@
   .band-btn {
     display: grid;
     gap: 1px;
-    padding: 8px 10px;
+    padding: 9px 12px;
     text-align: left;
     border-radius: 12px;
-    border: 1px solid var(--border);
-    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    background: transparent;
     color: var(--text);
     font-size: 0.82rem;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
+  }
+  .band-btn:hover {
+    border-color: var(--text);
   }
   .band-btn[aria-pressed='true'] {
-    border-color: var(--accent);
-    background: var(--accent-soft);
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--ink-fg);
+  }
+  .band-btn[aria-pressed='true'] .text-muted {
+    color: inherit;
+    opacity: 0.8;
   }
 
-  .opt-card {
-    display: block;
-    width: 100%;
-    padding: 14px 16px;
-    text-align: left;
-    border-radius: 16px;
+  /* ── Booking options ── */
+  .seller-card {
+    border-radius: 18px;
     border: 1px solid var(--border);
-    background: var(--surface-solid-2);
-    color: var(--text);
-    cursor: pointer;
-    transition:
-      border-color 0.15s,
-      background 0.15s;
-  }
-  .opt-card:hover {
-    border-color: var(--border-strong);
-  }
-  .opt-card.is-on,
-  .opt-card[aria-checked='true'] {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-  }
-
-  /* Seat map */
-  .pax-pick {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 9px 12px;
-    border-radius: 14px;
-    border: 1px solid var(--border);
-    background: var(--surface-solid-2);
-    color: var(--text);
-  }
-  .pax-pick.is-on {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-  }
-  .cabin-shell {
-    position: relative;
-    padding: 28px 18px 18px;
-    border-radius: 120px 120px 28px 28px / 90px 90px 28px 28px;
-    border: 1px solid var(--border-strong);
     background: var(--surface);
-  }
-  .cabin-nose {
-    height: 10px;
-  }
-  .seat-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 6px;
-  }
-  .seat-row.is-exit-row {
-    margin-top: 14px;
-    margin-bottom: 14px;
-  }
-  .row-no {
-    width: 22px;
-    text-align: center;
-    font-size: 0.68rem;
-    font-weight: 600;
-    color: var(--faint);
-  }
-  .seat-col {
-    width: 34px;
-    text-align: center;
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--muted);
-  }
-  .seat-aisle {
-    width: 20px;
-  }
-  .seat {
-    width: 34px;
-    height: 36px;
-    border-radius: 9px 9px 6px 6px;
-    border: 1.5px solid color-mix(in srgb, var(--ok) 70%, transparent);
-    background: color-mix(in srgb, var(--ok) 18%, transparent);
-    color: var(--text);
-    font-size: 0.7rem;
-    font-weight: 700;
-    transition:
-      transform 0.12s,
-      background 0.12s;
-  }
-  .seat:hover:not(:disabled) {
-    transform: translateY(-2px);
-    background: color-mix(in srgb, var(--ok) 35%, transparent);
-  }
-  .seat.is-extra {
-    border-color: color-mix(in srgb, var(--c-flight) 80%, transparent);
-    background: color-mix(in srgb, var(--c-flight) 20%, transparent);
-  }
-  .seat.is-exit {
-    border-color: color-mix(in srgb, var(--warn) 80%, transparent);
-    background: color-mix(in srgb, var(--warn) 22%, transparent);
-  }
-  .seat.is-taken {
-    border-color: transparent;
-    background: var(--surface-2);
-    color: transparent;
-    opacity: 0.55;
-  }
-  .seat.is-other {
-    border-style: dashed;
-    border-color: var(--border-strong);
-    background: var(--surface-2);
-    color: var(--muted);
-  }
-  .seat.is-picked {
-    border-color: transparent;
-    color: #fff;
-    background: linear-gradient(135deg, var(--btn-from), var(--btn-to));
-    box-shadow: 0 6px 16px -6px rgba(91, 61, 245, 0.9);
-  }
-  .seat:disabled {
-    cursor: not-allowed;
-  }
-  .seat-key {
-    display: inline-block;
-    width: 18px;
-    height: 18px;
-    border-radius: 5px;
-    border: 1.5px solid color-mix(in srgb, var(--ok) 70%, transparent);
-    background: color-mix(in srgb, var(--ok) 18%, transparent);
-  }
-  .seat-key.is-extra {
-    border-color: var(--c-flight);
-    background: color-mix(in srgb, var(--c-flight) 20%, transparent);
-  }
-  .seat-key.is-exit {
-    border-color: var(--warn);
-    background: color-mix(in srgb, var(--warn) 22%, transparent);
-  }
-  .seat-key.is-picked {
-    border: 0;
-    background: linear-gradient(135deg, var(--btn-from), var(--btn-to));
-  }
-  .seat-key.is-taken {
-    border: 0;
-    background: var(--surface-2);
-    opacity: 0.6;
-  }
-
-  /* Boarding pass */
-  .pass {
-    display: grid;
-    overflow: hidden;
-    border-radius: 24px;
-    border: 1px solid var(--border-strong);
-    background: var(--surface-solid);
     box-shadow: var(--shadow-sm);
   }
-  @media (min-width: 640px) {
-    .pass {
-      grid-template-columns: 1fr 11.5rem;
-    }
-  }
-  .pass-main {
-    padding: 20px 22px;
-    background: linear-gradient(160deg, var(--accent-soft), transparent 55%);
-  }
-  .pass-stub {
-    position: relative;
-    display: grid;
-    place-content: center;
-    justify-items: center;
-    padding: 18px;
-    border-top: 2px dashed var(--border-strong);
-    background: var(--surface);
-  }
-  @media (min-width: 640px) {
-    .pass-stub {
-      border-top: 0;
-      border-left: 2px dashed var(--border-strong);
-    }
-    .pass-stub::before,
-    .pass-stub::after {
-      content: '';
-      position: absolute;
-      left: -11px;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: var(--bg);
-      border: 1px solid var(--border-strong);
-    }
-    .pass-stub::before {
-      top: -10px;
-    }
-    .pass-stub::after {
-      bottom: -10px;
-    }
-  }
-  .pass-k {
-    font-size: 0.66rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  .pass-v {
-    font-family: var(--font-display);
-    font-size: 1.02rem;
-    font-weight: 700;
+  .seller-card.is-best {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
   }
 
-  .success-hero {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    padding: 28px 30px;
-    border-radius: 28px;
-    color: #fff;
-    background:
-      radial-gradient(120% 160% at 0% 0%, rgba(255, 255, 255, 0.22), transparent 55%),
-      linear-gradient(135deg, #047857, #0e7490 60%, #2563eb);
-    box-shadow: 0 24px 60px -24px rgba(5, 120, 87, 0.7);
-  }
-  .next-trip {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 24px 28px;
-    border-radius: 26px;
-    color: #fff;
-    background:
-      radial-gradient(120% 160% at 100% 0%, rgba(255, 255, 255, 0.2), transparent 55%),
-      linear-gradient(135deg, #5b3df5, #2563eb 70%, #0e7490);
-    box-shadow: 0 24px 60px -26px rgba(91, 61, 245, 0.8);
-    transition: transform 0.25s;
-  }
-  .next-trip:hover {
-    transform: translateY(-3px);
-  }
-  .booking-card {
-    position: relative;
-    padding: 20px 22px;
-    border-radius: 22px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    backdrop-filter: blur(14px);
-    transition:
-      transform 0.2s,
-      border-color 0.2s;
-  }
-  .booking-card:hover {
-    transform: translateY(-3px);
-    border-color: var(--border-strong);
-  }
+  /* ── Alerts ── */
   .alert-card {
     padding: 22px;
-    border-radius: 24px;
+    border-radius: 18px;
     border: 1px solid var(--border);
     background: var(--surface);
-    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow-sm);
   }
   .alert-card.is-hit {
-    border-color: color-mix(in srgb, var(--ok) 65%, transparent);
-    box-shadow: 0 18px 44px -22px rgba(16, 185, 129, 0.55);
-  }
-  .miles-card {
-    padding: 26px;
-    border-radius: 26px;
-    color: #fff;
-    background:
-      radial-gradient(120% 160% at 100% 0%, rgba(255, 255, 255, 0.22), transparent 55%),
-      linear-gradient(135deg, #7c3aed, #db2777 70%, #ea580c);
-    box-shadow: 0 24px 60px -26px rgba(124, 58, 237, 0.8);
-  }
-}
-
-@media print {
-  .pass,
-  .card,
-  .booking-card {
-    box-shadow: none !important;
-    background: #fff !important;
-    border-color: #999 !important;
-    color: #000 !important;
-    break-inside: avoid;
-  }
-  .gradient-text {
-    color: #000 !important;
-    background: none !important;
+    border-color: var(--ok);
+    box-shadow: 0 0 0 1px var(--ok);
   }
 }

@@ -1,6 +1,6 @@
 import { Component, ElementRef, effect, inject, input } from '@angular/core';
 import {
-  Armchair, ArrowLeft, ArrowRight, ArrowRightLeft, Award, Baby, BadgeCheck, Bell, BellRing, Briefcase, CalendarDays, CalendarPlus,
+  Armchair, ArrowLeft, Bookmark, BookmarkCheck, ChartLine, Database, ExternalLink, Gauge, KeyRound, Ruler, Share2, ArrowRight, ArrowRightLeft, Award, Baby, BadgeCheck, Bell, BellRing, Briefcase, CalendarDays, CalendarPlus,
   Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, CircleCheck, CircleHelp, Clock, Copy, CreditCard, Crown,
   Download, Flame, Gift, Globe, Heart, Info, Leaf, Lock, LogOut, Luggage, Mail, MapPin, Menu, Minus, Moon, Pencil, Phone, Plane,
   PlaneLanding, PlaneTakeoff, Plug, Plus, Printer, QrCode, Receipt, RefreshCw, Repeat, Search, ShieldCheck, SlidersHorizontal,
@@ -11,7 +11,7 @@ import {
 type IconNode = Parameters<typeof createElement>[0];
 
 const ICONS: Record<string, IconNode> = {
-  armchair: Armchair, 'arrow-left': ArrowLeft, 'arrow-right': ArrowRight, 'arrow-right-left': ArrowRightLeft, award: Award, baby: Baby,
+  armchair: Armchair, bookmark: Bookmark, 'bookmark-check': BookmarkCheck, 'chart-line': ChartLine, database: Database, 'external-link': ExternalLink, gauge: Gauge, 'key-round': KeyRound, ruler: Ruler, 'share-2': Share2, 'arrow-left': ArrowLeft, 'arrow-right': ArrowRight, 'arrow-right-left': ArrowRightLeft, award: Award, baby: Baby,
   'badge-check': BadgeCheck, bell: Bell, 'bell-ring': BellRing, briefcase: Briefcase, 'calendar-days': CalendarDays,
   'calendar-plus': CalendarPlus, check: Check, 'chevron-down': ChevronDown, 'chevron-left': ChevronLeft, 'chevron-right': ChevronRight,
   'chevron-up': ChevronUp, 'circle-alert': CircleAlert, 'circle-check': CircleCheck, 'circle-help': CircleHelp, clock: Clock, copy: Copy,

@@ -13,14 +13,14 @@ const guestOnly: CanActivateFn = (route) => {
   const router = inject(Router);
   if (!auth.signedIn()) return true;
   const redirect = route.queryParamMap.get('redirect');
-  return router.parseUrl(redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/bookings');
+  return router.parseUrl(redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/saved');
 };
 
 export const routes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    title: 'WanderGrid — Book international flights',
+    title: 'WanderGrid — Live flight prices',
     loadComponent: () => import('./features/home/home.component').then((m) => m.HomeComponent),
   },
   {
@@ -35,23 +35,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent),
   },
   {
-    path: 'checkout',
+    path: 'saved',
     canActivate: [requireAuth],
-    title: 'Checkout — WanderGrid',
-    loadComponent: () => import('./features/checkout/checkout.component').then((m) => m.CheckoutComponent),
+    title: 'Saved trips — WanderGrid',
+    loadComponent: () => import('./features/saved/saved.component').then((m) => m.SavedComponent),
   },
-  {
-    path: 'booking/:ref',
-    canActivate: [requireAuth],
-    title: 'Your booking — WanderGrid',
-    loadComponent: () => import('./features/bookings/booking-detail.component').then((m) => m.BookingDetailComponent),
-  },
-  {
-    path: 'bookings',
-    canActivate: [requireAuth],
-    title: 'My trips — WanderGrid',
-    loadComponent: () => import('./features/bookings/bookings.component').then((m) => m.BookingsComponent),
-  },
+  { path: 'bookings', redirectTo: 'saved' },
   {
     path: 'alerts',
     canActivate: [requireAuth],

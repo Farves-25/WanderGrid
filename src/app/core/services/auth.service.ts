@@ -1,6 +1,6 @@
 import { Service, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { hashString } from '../engine/prng';
+import { hashString } from '../util/hash';
 import { newId, nowIso } from '../util/id.util';
 import { OfflineCacheService } from './offline-cache.service';
 

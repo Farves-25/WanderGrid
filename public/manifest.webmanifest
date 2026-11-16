@@ -1,11 +1,11 @@
 {
   "name": "WanderGrid — International flight booking",
   "short_name": "WanderGrid",
-  "description": "Search, compare and book international flights. Pick seats, add bags, and keep your e-tickets offline.",
+  "description": "Search live flight prices, compare booking sites and track fares.",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#070b1a",
-  "theme_color": "#070b1a",
+  "background_color": "#f6f2ea",
+  "theme_color": "#f6f2ea",
   "start_url": "/",
   "scope": "/",
   "icons": [
@@ -14,7 +14,7 @@
     { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "My trips", "url": "/bookings" },
+    { "name": "Saved trips", "url": "/saved" },
     { "name": "Price alerts", "url": "/alerts" }
   ]
 }
