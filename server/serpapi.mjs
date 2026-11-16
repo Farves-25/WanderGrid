@@ -63,7 +63,12 @@ export function buildQuery(p, opts = {}) {
     if (p.type === 'round') q.return_date = p.legs[1].date;
   }
   if (opts.departureToken) q.departure_token = opts.departureToken;
-  if (opts.bookingToken) q.booking_token = opts.bookingToken;
+  if (opts.bookingToken) {
+    q.booking_token = opts.bookingToken;
+    // Google Flights usually answers "no results" for a booking_token when `adults=1` is sent
+    // explicitly (verified live), although 1 is the default. Larger parties still need the count.
+    if (p.adults === 1) delete q.adults;
+  }
   return q;
 }
 

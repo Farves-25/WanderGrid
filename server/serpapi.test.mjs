@@ -66,6 +66,12 @@ test('buildQuery maps trip types, cabins and passengers', () => {
   assert.equal(q3.booking_token, 'B');
 });
 
+test('buildQuery omits adults=1 for booking tokens only', () => {
+  assert.equal(buildQuery(oneway, { bookingToken: 'B' }).adults, undefined);
+  assert.equal(buildQuery(oneway).adults, '1');
+  assert.equal(buildQuery({ ...oneway, adults: 2 }, { bookingToken: 'B' }).adults, '2');
+});
+
 test('normalizeSearch turns Google Flights items into offers', () => {
   const res = normalizeSearch(
     {

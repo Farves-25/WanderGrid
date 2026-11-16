@@ -1,4 +1,5 @@
-import { Component, computed, model, signal } from '@angular/core';
+import { Component, ElementRef, computed, inject, model, signal } from '@angular/core';
+import { placePopover } from '../../core/util/popover';
 import { MAX_PAX } from '../../core/util/search-query';
 import { IconComponent } from './icon.component';
 
@@ -7,7 +8,13 @@ let uid = 0;
 @Component({
   selector: 'app-passenger-picker',
   imports: [IconComponent],
-  host: { class: 'relative block', '(document:click)': 'open.set(false)', '(document:keydown.escape)': 'open.set(false)' },
+  host: {
+    class: 'relative block',
+    '(document:click)': 'open.set(false)',
+    '(document:keydown.escape)': 'open.set(false)',
+    '(window:resize)': 'place()',
+    '(window:scroll)': 'place()',
+  },
   template: `
     <span class="label" [id]="labelId">Travelers</span>
     <button
@@ -18,14 +25,25 @@ let uid = 0;
       aria-haspopup="true"
       [attr.aria-expanded]="open()"
       [attr.aria-controls]="panelId"
-      (click)="open.set(!open()); $event.stopPropagation()"
+      (click)="toggle(); $event.stopPropagation()"
     >
       <app-icon name="users" [size]="18" />
       <span class="flex-1 truncate">{{ summary() }}</span>
       <app-icon name="chevron-down" [size]="16" />
     </button>
     @if (open()) {
-      <div [id]="panelId" role="group" aria-label="Travelers" class="menu !left-0 !right-auto z-50 w-[min(20rem,calc(100vw-2rem))] !p-4" (click)="$event.stopPropagation()">
+      <div
+        [id]="panelId"
+        role="group"
+        aria-label="Travelers"
+        class="menu z-50 w-[min(20rem,calc(100vw-2rem))] overflow-y-auto !p-4"
+        [style.left]="end() ? 'auto' : '0'"
+        [style.right]="end() ? '0' : 'auto'"
+        [style.top]="up() ? 'auto' : 'calc(100% + 8px)'"
+        [style.bottom]="up() ? 'calc(100% + 8px)' : 'auto'"
+        [style.max-height.px]="maxHeight()"
+        (click)="$event.stopPropagation()"
+      >
         @for (row of rows(); track row.key) {
           <div class="flex items-center justify-between gap-4 py-2.5">
             <div>
@@ -55,6 +73,26 @@ export class PassengerPickerComponent {
   protected readonly labelId = `pp-label-${++uid}`;
   protected readonly btnId = `pp-btn-${uid}`;
   protected readonly panelId = `pp-panel-${uid}`;
+
+  protected readonly up = signal(false);
+  protected readonly end = signal(false);
+  protected readonly maxHeight = signal(380);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  protected toggle(): void {
+    this.open.set(!this.open());
+    this.place();
+  }
+
+  protected place(): void {
+    if (!this.open()) return;
+    const btn = this.host.nativeElement.querySelector('button');
+    if (!btn) return;
+    const p = placePopover(btn, 320, 380);
+    this.up.set(p.up);
+    this.end.set(p.end);
+    this.maxHeight.set(p.maxHeight);
+  }
 
   protected readonly total = computed(() => this.adults() + this.children() + this.infants());
   protected readonly summary = computed(() => {

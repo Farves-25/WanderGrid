@@ -151,7 +151,7 @@ const BANDS: { id: Band; label: string; hours: string }[] = [
               } @else {
                 <ul class="grid gap-4">
                   @for (o of shown(); track o.id) {
-                    <li><app-flight-card [offer]="o" [badges]="badgesFor(o)" [selected]="selections()[activeIdx()]?.id === o.id" [actionLabel]="isLastLeg() ? 'Book now' : 'Select'" [priceNote]="cardNote(o)" (choose)="pick(o)" /></li>
+                    <li><app-flight-card [offer]="o" [badges]="badgesFor(o)" [selected]="selections()[activeIdx()]?.id === o.id" [actionLabel]="isLastLeg() ? 'Book now' : 'Select'" [priceNote]="cardNote(o)" (choose)="pick(o)" (intent)="onIntent(o, $event)" /></li>
                   }
                 </ul>
               }
@@ -482,7 +482,22 @@ export class ResultsComponent {
     return { cheapest: t.cheapest === o.id, fastest: t.fastest === o.id };
   }
 
+  private intentTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /**
+   * The booking lookup takes several seconds, so once the user lingers on "Book now" for the last
+   * flight we start it early. The short delay avoids spending searches while the mouse just passes by.
+   */
+  protected onIntent(o: FlightOffer, active: boolean): void {
+    clearTimeout(this.intentTimer);
+    const p = this.params();
+    if (!active || !p || !this.isLastLeg() || !o.bookingToken) return;
+    const token = o.bookingToken;
+    this.intentTimer = setTimeout(() => this.api.prefetchBooking(p, token), 350);
+  }
+
   protected pick(o: FlightOffer): void {
+    clearTimeout(this.intentTimer);
     const p = this.params()!;
     const i = this.activeIdx();
     const last = i === p.legs.length - 1;

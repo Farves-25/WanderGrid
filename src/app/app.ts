@@ -8,11 +8,12 @@ import { ThemeService } from './core/services/theme.service';
 import { ConfirmHostComponent } from './shared/components/confirm-host.component';
 import { IconComponent } from './shared/components/icon.component';
 import { OfflineBannerComponent } from './shared/components/offline-banner.component';
+import { SelectComponent } from './shared/components/select.component';
 import { ToastHostComponent } from './shared/components/toast-host.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, IconComponent, OfflineBannerComponent, ToastHostComponent, ConfirmHostComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, IconComponent, OfflineBannerComponent, SelectComponent, ToastHostComponent, ConfirmHostComponent],
   host: {
     '(document:click)': 'menuOpen.set(false); mobileOpen.set(false)',
     '(document:keydown.escape)': 'menuOpen.set(false); mobileOpen.set(false)',
@@ -40,12 +41,7 @@ import { ToastHostComponent } from './shared/components/toast-host.component';
         </div>
 
         <div class="flex items-center gap-1.5">
-          <label class="sr-only" for="cur">Currency</label>
-          <select id="cur" class="select input-sm !w-[5.4rem] !border-transparent !bg-transparent font-semibold" [value]="prefs.currency()" (change)="prefs.setCurrency($any($event.target).value)">
-            @for (c of currencies; track c.code) {
-              <option [value]="c.code" [selected]="c.code === prefs.currency()">{{ c.code }}</option>
-            }
-          </select>
+          <app-select label="Currency" size="sm" [ghost]="true" [options]="currencyOptions" [value]="prefs.currency()" (valueChange)="prefs.setCurrency($event)" />
           <button type="button" class="icon-btn" (click)="theme.toggle()" [attr.aria-label]="theme.theme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
             <app-icon [name]="theme.theme() === 'dark' ? 'sun' : 'moon'" [size]="19" />
           </button>
@@ -114,7 +110,7 @@ export class App {
   protected readonly alerts = inject(AlertsService);
   private readonly router = inject(Router);
 
-  protected readonly currencies = CURRENCIES;
+  protected readonly currencyOptions = CURRENCIES.map((c) => ({ value: c.code, label: `${c.code} · ${c.name}`, short: c.code }));
   protected readonly menuOpen = signal(false);
   protected readonly mobileOpen = signal(false);
 

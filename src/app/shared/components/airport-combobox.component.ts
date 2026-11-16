@@ -1,4 +1,4 @@
-import { Component, computed, effect, input, model, signal } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, input, model, signal } from '@angular/core';
 import { AIRPORTS, POPULAR_CODES, findAirport, searchAirports } from '../../core/data/airports';
 import { Airport } from '../../core/models/flight.model';
 import { IconComponent } from './icon.component';
@@ -9,7 +9,7 @@ let uid = 0;
 @Component({
   selector: 'app-airport-combobox',
   imports: [IconComponent],
-  host: { class: 'relative block' },
+  host: { class: 'relative block', '(window:resize)': 'place()', '(window:scroll)': 'place()' },
   template: `
     <label class="label" [for]="inputId">{{ label() }}</label>
     <div class="relative">
@@ -39,9 +39,8 @@ let uid = 0;
           <app-icon name="x" [size]="14" />
         </button>
       }
-    </div>
     @if (open()) {
-      <ul [id]="listId" role="listbox" [attr.aria-label]="label() + ' suggestions'" class="menu !left-0 !right-auto !top-[calc(100%+6px)] z-50 max-h-[22rem] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto">
+      <ul [id]="listId" role="listbox" [attr.aria-label]="label() + ' suggestions'" class="menu !left-0 !right-auto z-50 w-[min(26rem,calc(100vw-2rem))] overflow-y-auto" [class.!top-[calc(100%+6px)]]="!dropUp()" [class.!top-auto]="dropUp()" [class.!bottom-[calc(100%+6px)]]="dropUp()" [style.max-height.px]="maxHeight()" (mousedown)="$event.preventDefault()">
         @if (!showingSearch()) {
           <li role="presentation" class="px-3 pb-1 pt-1.5 text-[0.7rem] font-bold uppercase tracking-wider text-faint">Popular airports</li>
         }
@@ -52,7 +51,6 @@ let uid = 0;
             [attr.aria-selected]="i === active()"
             class="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5"
             [class.bg-[var(--surface-2)]]="i === active()"
-            (mousedown)="$event.preventDefault()"
             (click)="choose(a)"
             (mousemove)="active.set(i)"
           >
@@ -67,6 +65,7 @@ let uid = 0;
         }
       </ul>
     }
+    </div>
   `,
 })
 export class AirportComboboxComponent {
@@ -81,6 +80,9 @@ export class AirportComboboxComponent {
   protected readonly query = signal('');
   protected readonly open = signal(false);
   protected readonly active = signal(0);
+  protected readonly dropUp = signal(false);
+  protected readonly maxHeight = signal(352);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private typing = false;
 
   protected readonly showingSearch = computed(() => this.typing && this.query().trim().length > 0 && this.open());
@@ -99,6 +101,21 @@ export class AirportComboboxComponent {
     });
   }
 
+  /** Opens the list downward, or upward when there isn't room below the field. */
+  protected place(): void {
+    if (!this.open()) return;
+    const field = this.host.nativeElement.querySelector('input');
+    if (!field) return;
+    const r = field.getBoundingClientRect();
+    const margin = 16;
+    const below = window.innerHeight - r.bottom - margin;
+    const above = r.top - margin;
+    const wanted = 352;
+    const up = below < Math.min(wanted, 220) && above > below;
+    this.dropUp.set(up);
+    this.maxHeight.set(Math.max(140, Math.min(wanted, up ? above : below)));
+  }
+
   private display(a: Airport): string {
     return `${a.city} (${a.code})`;
   }
@@ -108,6 +125,7 @@ export class AirportComboboxComponent {
     this.typing = false;
     this.active.set(0);
     this.open.set(true);
+    this.place();
   }
 
   protected onInput(e: Event): void {
@@ -115,6 +133,7 @@ export class AirportComboboxComponent {
     this.query.set((e.target as HTMLInputElement).value);
     this.active.set(0);
     this.open.set(true);
+    this.place();
   }
 
   protected onKey(e: KeyboardEvent): void {
@@ -122,8 +141,10 @@ export class AirportComboboxComponent {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        if (!this.open()) this.open.set(true);
-        else this.active.set((this.active() + 1) % Math.max(1, opts.length));
+        if (!this.open()) {
+          this.open.set(true);
+          this.place();
+        } else this.active.set((this.active() + 1) % Math.max(1, opts.length));
         break;
       case 'ArrowUp':
         e.preventDefault();
@@ -176,6 +197,7 @@ export class AirportComboboxComponent {
     this.query.set('');
     this.typing = true;
     this.open.set(true);
+    this.place();
   }
 }
 

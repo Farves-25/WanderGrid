@@ -26,7 +26,7 @@ const FAQ = [
   selector: 'app-home',
   imports: [SearchFormComponent, IconComponent, MoneyPipe, RouterLink],
   template: `
-    <section class="relative overflow-hidden">
+    <section class="relative overflow-x-clip">
       <div class="page !pb-10 !pt-10 md:!pt-16">
         <div class="grid items-center gap-10 lg:grid-cols-[1.15fr_0.85fr]">
           <div class="rise">
@@ -98,13 +98,19 @@ const FAQ = [
         @for (d of destinations(); track d.code; let i = $index) {
           <li class="deal-card rise" [style]="d.style" [style.animation-delay.ms]="i * 50">
             <div class="deal-cover">
-              <span class="font-display text-5xl font-bold tracking-tight text-white/95 drop-shadow">{{ d.code }}</span>
+              <span class="deal-pill"><app-icon name="plane" [size]="12" /> {{ d.from }} → {{ d.code }}</span>
+              <span class="deal-code">{{ d.code }}</span>
+              <span class="deal-go" aria-hidden="true"><app-icon name="arrow-right" [size]="16" [stroke]="2.4" /></span>
             </div>
-            <div class="p-4">
-              <h3 class="text-lg font-bold leading-tight"><a class="stretched-link" [routerLink]="['/flights']" [queryParams]="d.query">{{ d.city }}</a></h3>
+            <div class="px-5 pb-4 pt-4">
+              <h3 class="font-display text-xl font-semibold leading-tight"><a class="stretched-link" [routerLink]="['/flights']" [queryParams]="d.query">{{ d.city }}</a></h3>
               <p class="text-sm text-muted">{{ d.country }}</p>
-              <p class="mt-3 flex items-center gap-1.5 text-sm font-semibold text-accent">See live prices <app-icon name="arrow-right" [size]="14" /></p>
             </div>
+            <div class="deal-perf"></div>
+            <p class="deal-cta flex items-center justify-between px-5 py-3 text-sm font-semibold text-accent">
+              <span>See live prices</span>
+              <app-icon name="arrow-right" [size]="15" />
+            </p>
           </li>
         }
       </ul>
@@ -125,14 +131,19 @@ const FAQ = [
 
     <section class="page !pt-4" aria-labelledby="faq-h">
       <h2 id="faq-h" class="text-3xl font-bold">Good to know</h2>
-      <div class="mt-6 grid gap-3 lg:grid-cols-2">
-        @for (f of faq; track f.q) {
-          <details class="card group p-5">
-            <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
-              {{ f.q }} <app-icon name="chevron-down" [size]="18" />
-            </summary>
-            <p class="mt-3 text-sm leading-relaxed text-muted">{{ f.a }}</p>
-          </details>
+      <div class="mt-6 grid items-start gap-3 lg:grid-cols-2">
+        @for (col of faqColumns; track $index) {
+          <div class="grid gap-3">
+            @for (f of col; track f.q) {
+              <details class="card faq group p-5">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
+                  {{ f.q }}
+                  <span class="inline-grid shrink-0 transition-transform duration-300 group-open:rotate-180"><app-icon name="chevron-down" [size]="18" /></span>
+                </summary>
+                <p class="mt-3 text-sm leading-relaxed text-muted">{{ f.a }}</p>
+              </details>
+            }
+          </div>
         }
       </div>
     </section>
@@ -143,7 +154,8 @@ export class HomeComponent {
   private readonly prefs = inject(PreferencesService);
   protected readonly saved = inject(SavedService);
 
-  protected readonly faq = FAQ;
+  /** Two independent columns so opening one answer never stretches its neighbour. */
+  protected readonly faqColumns = [FAQ.slice(0, Math.ceil(FAQ.length / 2)), FAQ.slice(Math.ceil(FAQ.length / 2))];
   protected readonly features = [
     { icon: 'chart-line', title: 'Live prices', text: 'Real schedules and fares from Google Flights, with price history and what the trip usually costs.' },
     { icon: 'external-link', title: 'Book at the source', text: 'Compare every airline and travel site selling your flights, then book on the one you choose.' },
@@ -181,7 +193,7 @@ export class HomeComponent {
           legs: [{ from: origin.code, to: dest.code, date: depart }, { from: dest.code, to: origin.code, date: ret }],
           adults: 1, children: 0, infants: 0, cabin: 'economy',
         };
-        return { code: dest.code, city: dest.city, country: dest.country, style: `--h1:${h};--h2:${(h + 55) % 360};--h3:${(h + 200) % 360}`, query: toQuery(params) };
+        return { from: origin.code, code: dest.code, city: dest.city, country: dest.country, style: `--h1:${h};--h2:${(h + 55) % 360};--h3:${(h + 200) % 360}`, query: toQuery(params) };
       });
   });
 

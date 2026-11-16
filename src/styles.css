@@ -512,8 +512,36 @@ code {
     font-weight: 500;
     color: var(--accent);
   }
+  /* Sticky footer: the shell fills the viewport and <main> absorbs the slack. */
+  app-root {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+  app-root > main {
+    flex: 1 0 auto;
+  }
   .site-footer {
     border-top: 1px solid var(--border);
+  }
+  /* Smoothly expanding <details>. Browsers without ::details-content just open instantly. */
+  @media (prefers-reduced-motion: no-preference) {
+    .faq {
+      interpolate-size: allow-keywords;
+    }
+    .faq::details-content {
+      block-size: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition:
+        block-size 0.32s cubic-bezier(0.2, 0.8, 0.3, 1),
+        opacity 0.25s ease,
+        content-visibility 0.32s allow-discrete;
+    }
+    .faq[open]::details-content {
+      block-size: auto;
+      opacity: 1;
+    }
   }
   .page {
     width: 100%;

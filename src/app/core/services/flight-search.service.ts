@@ -36,6 +36,7 @@ function toApiError(e: unknown): ApiError {
 export class FlightSearchService {
   private readonly http = inject(HttpClient);
   private readonly cache = new Map<string, { at: number; value: SearchResult | BookingResult }>();
+  private readonly pending = new Map<string, Promise<unknown>>();
 
   /** Provider configuration and remaining search quota; null until first loaded. */
   readonly status = signal<ApiStatus | null>(null);
@@ -58,9 +59,22 @@ export class FlightSearchService {
     const key = `b|${searchKey(params)}|${token}`;
     const hit = this.hit<BookingResult>(key);
     if (hit) return hit;
-    const value = await this.post<BookingResult>('/api/flights/booking', { params, token });
-    this.cache.set(key, { at: Date.now(), value });
-    return value;
+    // A prefetch that is still running is reused instead of starting a second request.
+    const running = this.pending.get(key) as Promise<BookingResult> | undefined;
+    if (running) return running;
+    const task = this.post<BookingResult>('/api/flights/booking', { params, token })
+      .then((value) => {
+        this.cache.set(key, { at: Date.now(), value });
+        return value;
+      })
+      .finally(() => this.pending.delete(key));
+    this.pending.set(key, task);
+    return task;
+  }
+
+  /** Starts the (slow) booking lookup early, e.g. while the user hovers "Book now". Errors are ignored. */
+  prefetchBooking(params: SearchParams, token: string): void {
+    this.booking(params, token).catch(() => undefined);
   }
 
   async refreshStatus(): Promise<ApiStatus | null> {

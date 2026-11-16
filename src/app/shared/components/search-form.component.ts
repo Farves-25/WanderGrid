@@ -1,11 +1,13 @@
 import { Component, effect, inject, input, output, signal } from '@angular/core';
 import { CABIN_LABEL, Cabin, SearchLeg, SearchParams, TripType } from '../../core/models/flight.model';
 import { PreferencesService } from '../../core/services/preferences.service';
-import { addDays, formatDate, todayIso } from '../../core/util/date.util';
+import { addDays, todayIso } from '../../core/util/date.util';
 import { MAX_ADVANCE_DAYS, validateSearch } from '../../core/util/search-query';
 import { AirportComboboxComponent } from './airport-combobox.component';
+import { DatePickerComponent } from './date-picker.component';
 import { IconComponent } from './icon.component';
 import { PassengerPickerComponent } from './passenger-picker.component';
+import { SelectComponent } from './select.component';
 
 const TYPES: { id: TripType; label: string }[] = [
   { id: 'round', label: 'Round trip' },
@@ -15,7 +17,7 @@ const TYPES: { id: TripType; label: string }[] = [
 
 @Component({
   selector: 'app-search-form',
-  imports: [AirportComboboxComponent, PassengerPickerComponent, IconComponent],
+  imports: [AirportComboboxComponent, PassengerPickerComponent, IconComponent, DatePickerComponent, SelectComponent],
   template: `
     <form class="glass p-4 sm:p-6" (submit)="submit($event)" novalidate aria-label="Flight search">
       <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -25,33 +27,20 @@ const TYPES: { id: TripType; label: string }[] = [
           }
         </div>
         <div class="flex items-center gap-2">
-          <label class="sr-only" for="sf-cabin">Cabin class</label>
-          <select id="sf-cabin" class="select input-sm !w-auto" [value]="cabin()" (change)="cabin.set($any($event.target).value)">
-            @for (c of cabins; track c.id) {
-              <option [value]="c.id" [selected]="c.id === cabin()">{{ c.label }}</option>
-            }
-          </select>
+          <app-select label="Cabin class" size="sm" [options]="cabins" [value]="cabin()" (valueChange)="setCabin($event)" />
         </div>
       </div>
 
       @if (type() !== 'multi') {
         <div class="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[1.25fr_auto_1.25fr_1fr_1fr_1fr]">
           <app-airport-combobox [(code)]="from" label="From" icon="plane-takeoff" [invalid]="bad() === 'from'" />
-          <button type="button" class="icon-btn mx-auto !h-11 !w-11 !border-[var(--border)] max-md:hidden" aria-label="Swap origin and destination" (click)="swap()">
+          <button type="button" class="icon-btn mx-auto !h-[46px] !w-[46px] !border-[var(--border)] max-md:hidden" aria-label="Swap origin and destination" (click)="swap()">
             <app-icon name="arrow-right-left" [size]="18" />
           </button>
           <app-airport-combobox [(code)]="to" label="To" icon="plane-landing" [invalid]="bad() === 'to'" />
-          <div>
-            <label class="label" for="sf-dep">Depart</label>
-            <input id="sf-dep" class="input" type="date" [min]="today" [max]="maxDate" [value]="depart()" [attr.aria-invalid]="bad() === 'depart'" (input)="onDepart($any($event.target).value)" />
-            <p class="mt-1 text-xs text-faint">{{ weekday(depart()) }}</p>
-          </div>
+          <app-date-picker label="Depart" [min]="today" [max]="maxDate" [value]="depart()" (valueChange)="onDepart($event)" [invalid]="bad() === 'depart'" [rangeStart]="type() === 'round' ? depart() : ''" [rangeEnd]="type() === 'round' ? ret() : ''" />
           @if (type() === 'round') {
-            <div>
-              <label class="label" for="sf-ret">Return</label>
-              <input id="sf-ret" class="input" type="date" [min]="depart() || today" [max]="maxDate" [value]="ret()" [attr.aria-invalid]="bad() === 'ret'" (input)="ret.set($any($event.target).value)" />
-              <p class="mt-1 text-xs text-faint">{{ weekday(ret()) }}</p>
-            </div>
+            <app-date-picker label="Return" [min]="depart() || today" [max]="maxDate" [(value)]="ret" [invalid]="bad() === 'ret'" [rangeStart]="depart()" [rangeEnd]="ret()" />
           } @else {
             <div class="hidden xl:block"></div>
           }
@@ -63,11 +52,8 @@ const TYPES: { id: TripType; label: string }[] = [
             <div class="grid items-end gap-3 md:grid-cols-[1fr_1fr_12rem_auto]">
               <app-airport-combobox [code]="leg.from" (codeChange)="patchLeg(i, 'from', $event)" [label]="'Flight ' + (i + 1) + ' from'" icon="plane-takeoff" />
               <app-airport-combobox [code]="leg.to" (codeChange)="patchLeg(i, 'to', $event)" [label]="'Flight ' + (i + 1) + ' to'" icon="plane-landing" />
-              <div>
-                <label class="label" [for]="'sf-d' + i">Date</label>
-                <input [id]="'sf-d' + i" class="input" type="date" [min]="i > 0 ? multi()[i - 1].date || today : today" [max]="maxDate" [value]="leg.date" (input)="patchLeg(i, 'date', $any($event.target).value)" />
-              </div>
-              <button type="button" class="icon-btn !h-11 !w-11 !border-[var(--border)]" [attr.aria-label]="'Remove flight ' + (i + 1)" [disabled]="multi().length <= 2" (click)="removeLeg(i)">
+              <app-date-picker [label]="'Flight ' + (i + 1) + ' date'" [min]="i > 0 ? multi()[i - 1].date || today : today" [max]="maxDate" [value]="leg.date" (valueChange)="patchLeg(i, 'date', $event)" />
+              <button type="button" class="icon-btn !h-[46px] !w-[46px] !border-[var(--border)]" [attr.aria-label]="'Remove flight ' + (i + 1)" [disabled]="multi().length <= 2" (click)="removeLeg(i)">
                 <app-icon name="x" [size]="16" />
               </button>
             </div>
@@ -96,7 +82,7 @@ export class SearchFormComponent {
   private readonly prefs = inject(PreferencesService);
 
   protected readonly types = TYPES;
-  protected readonly cabins = (Object.keys(CABIN_LABEL) as Cabin[]).map((id) => ({ id, label: CABIN_LABEL[id] }));
+  protected readonly cabins = (Object.keys(CABIN_LABEL) as Cabin[]).map((id) => ({ value: id, label: CABIN_LABEL[id] }));
   protected readonly today = todayIso();
   protected readonly maxDate = addDays(todayIso(), MAX_ADVANCE_DAYS);
 
@@ -142,8 +128,8 @@ export class SearchFormComponent {
     ];
   }
 
-  protected weekday(iso: string): string {
-    return iso ? formatDate(iso, { weekday: 'long' }) : '';
+  protected setCabin(v: string): void {
+    this.cabin.set(v as Cabin);
   }
 
   protected setType(t: TripType): void {

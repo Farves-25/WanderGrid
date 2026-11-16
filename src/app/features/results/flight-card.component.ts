@@ -65,7 +65,15 @@ export interface FlightBadges {
               <p class="text-xs text-muted">Not published for this flight</p>
             }
           </div>
-          <button type="button" class="btn btn-primary" (click)="choose.emit()">
+          <button
+            type="button"
+            class="btn btn-primary"
+            (click)="choose.emit()"
+            (pointerenter)="$event.pointerType === 'mouse' && intent.emit(true)"
+            (pointerleave)="intent.emit(false)"
+            (focus)="intent.emit(true)"
+            (blur)="intent.emit(false)"
+          >
             @if (selected()) { <app-icon name="check" [size]="16" /> Selected } @else { {{ actionLabel() }} }
             <span class="sr-only"> {{ offer().airlines[0] }} {{ t().depTime }} flight</span>
           </button>
@@ -133,6 +141,8 @@ export class FlightCardComponent {
   /** Short note under the price, e.g. "round trip · 2 travelers". */
   readonly priceNote = input('');
   readonly choose = output<void>();
+  /** true while the user hovers/focuses the action button (about to choose), false when they leave. */
+  readonly intent = output<boolean>();
 
   protected readonly open = signal(false);
 

@@ -60,6 +60,17 @@ function limited(ip) {
   return false;
 }
 
+// Identical requests that arrive while one is already running share its result, so a prefetch
+// followed by the real click costs a single SerpApi search.
+const inflight = new Map();
+function once(key, task) {
+  const running = inflight.get(key);
+  if (running) return running;
+  const p = task().finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+
 class ApiError extends Error {
   constructor(status, code, message) {
     super(message);
@@ -108,10 +119,12 @@ async function handleSearch(body) {
   const key = `search:${JSON.stringify(query)}`;
   const hit = body.fresh === true ? null : cacheGet(key);
   if (hit) return { ...hit.value, fetchedAt: hit.at, cached: true };
-  const { json } = await serpapi(query);
-  const value = normalizeSearch(json, legIndex);
-  cacheSet(key, value, SEARCH_TTL);
-  return { ...value, fetchedAt: Date.now(), cached: false };
+  return once(key, async () => {
+    const { json } = await serpapi(query);
+    const value = normalizeSearch(json, legIndex);
+    cacheSet(key, value, SEARCH_TTL);
+    return { ...value, fetchedAt: Date.now(), cached: false };
+  });
 }
 
 async function handleBooking(body) {
@@ -122,10 +135,15 @@ async function handleBooking(body) {
   const key = `booking:${JSON.stringify(query)}`;
   const hit = cacheGet(key);
   if (hit) return { ...hit.value, fetchedAt: hit.at, cached: true };
-  const { json } = await serpapi(query);
-  const value = normalizeBooking(json);
-  cacheSet(key, value, BOOKING_TTL);
-  return { ...value, fetchedAt: Date.now(), cached: false };
+  return once(key, async () => {
+    let { json, empty } = await serpapi(query);
+    // Google occasionally answers "no results" for a valid token; retry once, bypassing SerpApi's cache.
+    if (empty) ({ json, empty } = await serpapi({ ...query, no_cache: 'true' }));
+    const value = normalizeBooking(json);
+    // Don't cache an empty answer, so the next click gets a fresh attempt.
+    if (value.options.length > 0) cacheSet(key, value, BOOKING_TTL);
+    return { ...value, fetchedAt: Date.now(), cached: false };
+  });
 }
 
 async function handleStatus() {
