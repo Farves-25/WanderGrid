@@ -98,7 +98,7 @@ import { ToastHostComponent } from './shared/components/toast-host.component';
       Flight schedules and prices are live from Google Flights. WanderGrid doesn’t sell tickets — you book and pay on the airline’s or travel agency’s own website, which confirms the final price.</p>
       </div>
     </footer>
-
+<!-- hi -->
     <app-toast-host />
     <app-confirm-host />
   `,
