@@ -3,6 +3,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AlertsService } from '../../core/services/alerts.service';
 import { AuthService } from '../../core/services/auth.service';
+import { ConfirmService } from '../../core/services/confirm.service';
 import { FlightSearchService } from '../../core/services/flight-search.service';
 import { RatesService } from '../../core/services/rates.service';
 import { SavedService } from '../../core/services/saved.service';
@@ -79,6 +80,19 @@ import { IconComponent } from '../../shared/components/icon.component';
             @if (ratesDate(); as d) { Exchange rates updated {{ d }}. } @else { Live exchange rates are unavailable — using built-in estimates. }
           </p>
         </section>
+
+        <section class="card rise p-6 [animation-delay:120ms] lg:col-span-2" aria-labelledby="danger-h">
+          <h2 id="danger-h" class="flex items-center gap-2 text-xl font-bold text-danger"><app-icon name="triangle-alert" [size]="19" /> Delete account</h2>
+          <p class="mt-2 max-w-2xl text-sm text-muted">
+            Permanently deletes your account, saved trips and price alerts. This can’t be undone. You’ll need to create a new account to sign in again.
+          </p>
+          @if (deleteError()) {
+            <p class="form-error mt-3" role="alert">{{ deleteError() }}</p>
+          }
+          <button type="button" class="btn btn-danger btn-sm mt-4" [disabled]="deleting()" (click)="deleteAccount()">
+            <app-icon name="trash-2" [size]="14" /> {{ deleting() ? 'Deleting…' : 'Delete my account' }}
+          </button>
+        </section>
       </div>
     </div>
   `,
@@ -90,7 +104,10 @@ export class AccountComponent {
   protected readonly alerts = inject(AlertsService);
   private readonly rates = inject(RatesService);
   private readonly toast = inject(ToastService);
+  private readonly confirm = inject(ConfirmService);
 
+  protected readonly deleting = signal(false);
+  protected readonly deleteError = signal('');
   protected readonly name = signal(this.auth.user()?.name ?? '');
   protected readonly checking = signal(true);
   private readonly reachable = signal(true);
@@ -123,6 +140,32 @@ export class AccountComponent {
     const s = await this.api.refreshStatus();
     this.reachable.set(s !== null);
     this.checking.set(false);
+  }
+
+  protected async deleteAccount(): Promise<void> {
+    const u = this.auth.user();
+    if (!u) return;
+    const ok = await this.confirm.ask({
+      title: 'Delete your account?',
+      message: `This permanently deletes ${u.email}, along with your saved trips and price alerts. This can’t be undone.`,
+      confirmLabel: 'Delete account',
+      danger: true,
+    });
+    if (!ok) return;
+    this.deleteError.set('');
+    this.deleting.set(true);
+    try {
+      const res = await this.auth.deleteAccount();
+      if (!res.ok) {
+        this.deleteError.set(res.message);
+        return;
+      }
+      this.saved.removeAllFor(u.id);
+      this.alerts.removeAllFor(u.id);
+      this.toast.success('Your account was deleted');
+    } finally {
+      this.deleting.set(false);
+    }
   }
 
   protected saveName(e: Event): void {

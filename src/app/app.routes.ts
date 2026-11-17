@@ -2,16 +2,18 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router, Routes } from '@angular/router';
 import { AuthService } from './core/services/auth.service';
 
-const requireAuth: CanActivateFn = (_route, state) => {
+const requireAuth: CanActivateFn = async (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
+  await auth.whenReady();
   return auth.signedIn() ? true : router.createUrlTree(['/login'], { queryParams: { redirect: state.url } });
 };
 
-const guestOnly: CanActivateFn = (route) => {
+const guestOnly: CanActivateFn = async (route) => {
   const auth = inject(AuthService);
   const router = inject(Router);
-  if (!auth.signedIn()) return true;
+  await auth.whenReady();
+  if (!auth.signedIn() || route.queryParamMap.get('mode') === 'reset') return true;
   const redirect = route.queryParamMap.get('redirect');
   return router.parseUrl(redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/saved');
 };

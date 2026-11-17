@@ -145,6 +145,11 @@ export class AlertsService {
     return a;
   }
 
+  /** Drops every alert belonging to a user (used when their account is deleted). */
+  removeAllFor(userId: string): void {
+    this.save(this.all().filter((a) => a.userId !== userId));
+  }
+
   restore(a: PriceAlert): void {
     this.save([...this.all(), a]);
   }

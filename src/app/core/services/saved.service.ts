@@ -55,6 +55,11 @@ export class SavedService {
     return t;
   }
 
+  /** Drops every saved trip belonging to a user (used when their account is deleted). */
+  removeAllFor(userId: string): void {
+    this.write(this.all().filter((t) => t.userId !== userId));
+  }
+
   restore(t: SavedTrip): void {
     if (!this.all().some((x) => x.id === t.id)) this.write([...this.all(), t]);
   }

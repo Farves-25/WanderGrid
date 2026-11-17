@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { CURRENCIES } from './core/models/flight.model';
 import { AlertsService } from './core/services/alerts.service';
 import { AuthService } from './core/services/auth.service';
@@ -108,7 +108,6 @@ export class App {
   protected readonly theme = inject(ThemeService);
   protected readonly prefs = inject(PreferencesService);
   protected readonly alerts = inject(AlertsService);
-  private readonly router = inject(Router);
 
   protected readonly currencyOptions = CURRENCIES.map((c) => ({ value: c.code, label: `${c.code} · ${c.name}`, short: c.code }));
   protected readonly menuOpen = signal(false);
@@ -116,7 +115,6 @@ export class App {
 
   protected async signOut(): Promise<void> {
     this.menuOpen.set(false);
-    await this.auth.signOut();
-    void this.router.navigateByUrl('/');
+    await this.auth.signOut(); // navigates to /login
   }
 }
